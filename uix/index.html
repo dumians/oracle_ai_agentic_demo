@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oracle AI Multi-Agent Gateway</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700;800&family=Fira+Code:wght@400;500&display=swap"
+        rel="stylesheet">
+    <!-- Lucide Icons via CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Styling -->
+    <link rel="stylesheet" href="index.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="logo-glow"></div>
+                <i data-lucide="cpu" class="brand-icon"></i>
+                <div class="brand-text">
+                    <h2>Oracle @GCP Multi-Agent </h2>
+                    <span>A2UI GATEWAY</span>
+                </div>
+            </div>
+
+            <div class="nav-section">
+                <span class="section-title">Agentic Workspace</span>
+                <nav class="nav-menu">
+                    <button class="nav-item active" data-tab="workspace">
+                        <i data-lucide="message-square"></i>
+                        <span>Agent Workspace</span>
+                        <span class="nav-badge">Live</span>
+                    </button>
+                </nav>
+            </div>
+
+            <div class="nav-section">
+                <span class="section-title">Admin Portal</span>
+                <nav class="nav-menu">
+                    <button class="nav-item" data-tab="data-sources">
+                        <i data-lucide="database"></i>
+                        <span>Data Sources</span>
+                    </button>
+                    <button class="nav-item" data-tab="agent-config">
+                        <i data-lucide="bot"></i>
+                        <span>Agent Config</span>
+                    </button>
+                    <button class="nav-item" data-tab="mcp-tools">
+                        <i data-lucide="component"></i>
+                        <span>MCP Toolbox</span>
+                    </button>
+
+                    <button class="nav-item" data-tab="live-logs">
+                        <i data-lucide="terminal"></i>
+                        <span>Live Telemetry</span>
+                    </button>
+                </nav>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="system-status">
+                    <div class="status-indicator online"></div>
+                    <div class="status-details">
+                        <p> Status</p>
+                        <span>Connected to 26ai</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Window -->
+        <main class="main-window">
+            <!-- Top Header -->
+            <header class="main-header glass">
+                <div class="header-left">
+                    <h1 id="page-title">Agent Workspace</h1>
+                    <p id="page-subtitle">Interact and proof the multi-agent in real-time.</p>
+                </div>
+                <div class="header-right">
+                    <!-- Mode Switcher Toggle -->
+                    <div class="playground-switcher glass">
+                        <span class="switcher-label">Mode:</span>
+                        <div class="switcher-buttons">
+                            <button id="mode-real" class="switcher-btn active">Real Connections</button>
+                            <button id="mode-mock" class="switcher-btn">Simulation</button>
+                        </div>
+                    </div>
+
+                    <!-- Telemetry Refresh Button -->
+                    <button id="refresh-btn" class="action-btn glass">
+                        <i data-lucide="refresh-cw" id="refresh-icon"></i>
+                        <span>Sync</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Tab Content Container -->
+            <div class="content-viewport">
+
+                <!-- TAB 1: Agent Workspace -->
+                <div id="tab-workspace" class="tab-pane active">
+                    <div class="workspace-layout">
+                        <!-- Chat Timeline -->
+                        <div class="chat-timeline glass">
+                            <div class="chat-messages" id="chat-messages-box">
+                                <!-- Initial message loaded dynamically -->
+                            </div>
+
+                            <!-- Input form -->
+                            <div class="chat-input-area">
+                                <form id="chat-input-form">
+                                    <div class="input-wrapper glass">
+                                        <i data-lucide="compass" class="input-compass"></i>
+                                        <input type="text" id="chat-input-field" autocomplete="off"
+                                            placeholder="Ask the coordinator (e.g., stockout risks, spatial hotspots, charts)...">
+                                        <button type="submit" id="chat-submit-btn">
+                                            <i data-lucide="send"></i>
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Live Trace Collapsible Panel -->
+                        <div class="trace-sidebar glass" id="trace-panel">
+                            <div class="trace-header">
+                                <div class="trace-title">
+                                    <i data-lucide="activity" class="trace-pulse"></i>
+                                    <h3>Coordination Trace</h3>
+                                </div>
+                                <button id="toggle-trace-btn" class="trace-toggle-btn">
+                                    <i data-lucide="chevron-right" id="trace-toggle-arrow"></i>
+                                </button>
+                            </div>
+                            <div class="trace-steps" id="trace-steps-container">
+                                <div class="trace-empty-state">
+                                    <i data-lucide="activity"></i>
+                                    <p>No active transaction</p>
+                                    <span>Submit a prompt in the workspace to observe the multi-agent execution trace
+                                        timeline.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 2: Registered Data Sources -->
+                <div id="tab-data-sources" class="tab-pane">
+                    <section class="panel-card glass">
+                        <div class="panel-header">
+                            <div>
+                                <h3>Registered Data Sources</h3>
+                                <p>Manage connected datastores and microservices scope.</p>
+                            </div>
+                            <button id="btn-add-ds" class="primary-btn">
+                                <i data-lucide="plus"></i> Register Source
+                            </button>
+                        </div>
+                        <div class="grid-3" id="ds-list-container">
+                            <!-- Data sources injected here -->
+                        </div>
+                    </section>
+                </div>
+
+                <!-- TAB 3: Agent Configuration -->
+                <div id="tab-agent-config" class="tab-pane">
+                    <div class="config-layout">
+                        <!-- Left Pane: Active Agents List -->
+                        <section class="panel-card glass lg-col-2">
+                            <div class="panel-header">
+                                <div>
+                                    <h3>Active Agents</h3>
+                                    <p>Federated specialists deployed inside the governance container.</p>
+                                </div>
+                            </div>
+                            <div class="agents-stack" id="agents-list-container">
+                                <!-- Agents stack injected here -->
+                            </div>
+                        </section>
+
+                        <!-- Right Pane: Configuration Form -->
+                        <section class="panel-card glass">
+                            <h3 id="form-agent-title">Configure Agent</h3>
+                            <p class="subtitle">Update governance rules, routing scope, and LLM profiles.</p>
+
+                            <form id="agent-config-form" class="panel-form">
+                                <input type="hidden" id="cfg-agent-id">
+                                <div class="form-group">
+                                    <label for="cfg-agent-name">Agent Name</label>
+                                    <input type="text" id="cfg-agent-name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="cfg-agent-model">LLM Foundation Model</label>
+                                    <select id="cfg-agent-model">
+                                        <option value="gemini-3.1-flash">Gemini 3.1 Flash (Ultra-fast Routing)</option>
+                                        <option value="gemini-3.1-pro">Gemini 3.1 Pro (Complex Logic)</option>
+                                        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                        <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="cfg-agent-domain">Data Domain Boundary</label>
+                                    <select id="cfg-agent-domain">
+                                        <option value="Global">Global / Unified </option>
+                                        <option value="Oracle Vector RAG Core">Oracle Vector RAG Core</option>
+                                        <option value="Oracle Supply Chain ERP">Oracle Supply Chain ERP</option>
+                                        <option value="GCP AI Reasoning Engine">GCP AI Reasoning Engine</option>
+                                        <option value="Hosted MCP Schemas Bridge">Hosted MCP Schemas Bridge</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="cfg-agent-prompt">System Prompt / Grounding Context</label>
+                                    <textarea id="cfg-agent-prompt" rows="6" required></textarea>
+                                </div>
+                                <button type="submit" class="submit-btn primary-btn">
+                                    <i data-lucide="save"></i> Save Configuration
+                                </button>
+                            </form>
+                        </section>
+                    </div>
+                </div>
+
+                <!-- TAB 4: MCP Toolbox -->
+                <div id="tab-mcp-tools" class="tab-pane">
+                    <div class="config-layout">
+                        <!-- Connected MCP Servers -->
+                        <section class="panel-card glass">
+                            <div class="panel-header">
+                                <div>
+                                    <h3>Connected MCP Servers</h3>
+                                    <p>Connected Model Context Protocol bridges.</p>
+                                </div>
+                            </div>
+                            <div class="servers-stack" id="mcp-servers-container">
+                                <!-- Servers list -->
+                            </div>
+                        </section>
+
+                        <!-- Discovered Tools -->
+                        <section class="panel-card glass lg-col-2">
+                            <div class="panel-header">
+                                <div>
+                                    <h3>Discovered Tools</h3>
+                                    <p>Agentic tools dynamically available across the multi-agent .</p>
+                                </div>
+                            </div>
+                            <div class="tools-grid" id="mcp-tools-container">
+                                <!-- Tools injected here -->
+                            </div>
+                        </section>
+                    </div>
+                </div>
+
+
+                <!-- TAB 7: Live Telemetry Logs -->
+                <div id="tab-live-logs" class="tab-pane">
+                    <section class="panel-card glass terminal-card">
+                        <div class="panel-header border-bottom">
+                            <div class="flex-row align-center gap-2">
+                                <i data-lucide="terminal" class="color-green"></i>
+                                <h3>Live Transaction Logs</h3>
+                            </div>
+                            <div class="filter-wrapper">
+                                <label for="log-filter">Scope Domain:</label>
+                                <select id="log-filter" class="glass">
+                                    <option value="all">All Logs</option>
+                                    <option value="Server">Server Events</option>
+                                    <option value="RAG Agent">RAG Agent</option>
+                                    <option value="Graph Agent">Graph Agent</option>
+                                    <option value="Spatial Agent">Spatial Agent</option>
+                                    <option value="Oracle AI Database Agent">Select AI DB Agent</option>
+                                    <option value="Inventory Action Agent">Action Agent</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="terminal-window scrollbar" id="terminal-output-box">
+                            <!-- Logs dynamically appended here -->
+                        </div>
+                    </section>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Add Data Source Modal -->
+    <div class="modal-backdrop" id="add-ds-modal">
+        <div class="modal glass">
+            <div class="modal-header">
+                <h3>Register Data Source</h3>
+                <button class="modal-close-btn" id="close-modal-btn">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <form id="add-ds-form" class="panel-form">
+                <div class="form-group">
+                    <label for="ds-name">Source Name</label>
+                    <input type="text" id="ds-name" placeholder="e.g. Oracle Supply Chain" required>
+                </div>
+                <div class="form-group">
+                    <label for="ds-domain">Data Domain Scope</label>
+                    <select id="ds-domain">
+                        <option value="Oracle Vector RAG Core">Oracle Vector RAG Core</option>
+                        <option value="Oracle Supply Chain ERP">Oracle Supply Chain ERP</option>
+                        <option value="GCP AI Reasoning Engine">GCP AI Reasoning Engine</option>
+                        <option value="Hosted MCP Schemas Bridge">Hosted MCP Schemas Bridge</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="glass-btn" id="cancel-modal-btn">Cancel</button>
+                    <button type="submit" class="primary-btn">Register</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Logic scripts -->
+    <script src="a2ui-components.js"></script>
+    <script src="index.js"></script>
+</body>
+
+</html>

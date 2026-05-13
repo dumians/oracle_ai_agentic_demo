@@ -1,0 +1,11 @@
+node_modules
+.env
+test_output.txt
+test_results.txt
+unit_test_output.txt
+spanner_tap.txt
+*article*.md
+.oracle_wallet
+.gemini
+.antigravity
+.vscode

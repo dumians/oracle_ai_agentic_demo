@@ -1,0 +1,23 @@
+{
+  "name": "oracle-ai-agentic-demo-js",
+  "version": "1.0.0",
+  "description": "Oracle AI Database + GCP Vertex AI E2E Demo in JavaScript",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "dependencies": {
+    "@google-cloud/vertexai": "^1.1.0",
+    "@google/genai": "^1.52.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "morgan": "^1.10.0",
+    "oracledb": "^6.5.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}

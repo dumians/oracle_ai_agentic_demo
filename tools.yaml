@@ -1,0 +1,56 @@
+sources:
+  oracle-ai-db:
+    kind: oracle
+    tnsAlias: ${DB_DSN}
+    tnsAdmin: ${DB_WALLET_DIR}
+    user: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    useOCI: true
+
+tools:
+  search-rag-documents:
+    kind: oracle-sql
+    source: oracle-ai-db
+    description: Search the RAG knowledge base using semantic similarity
+    statement: |
+      SELECT CONTENT, VECTOR_DISTANCE(EMBEDDING, :embedding, DOT_PRODUCT) as distance
+      FROM RAG_TAB
+      ORDER BY distance
+      FETCH FIRST :top_k ROWS ONLY
+
+  get-rag-stats:
+    kind: oracle-sql
+    source: oracle-ai-db
+    description: Get statistics about the RAG table
+    statement: |
+      SELECT COUNT(*) as total_documents FROM RAG_TAB
+
+  execute-sql:
+    kind: oracle-sql
+    source: oracle-ai-db
+    description: Execute custom SQL queries
+    statement: "{{sql_query}}"
+
+  get-table-schema:
+    kind: oracle-sql
+    source: oracle-ai-db
+    description: Get column information for a specific table
+    statement: |
+      SELECT column_name, data_type, data_length
+      FROM user_tab_columns
+      WHERE table_name = UPPER('{{table_name}}')
+
+  list-tables:
+    kind: oracle-sql
+    source: oracle-ai-db
+    description: List all tables in the current schema
+    statement: |
+      SELECT table_name FROM user_tables
+
+toolsets:
+  oracle-rag-toolset:
+    - search-rag-documents
+    - get-rag-stats
+    - execute-sql
+    - get-table-schema
+    - list-tables

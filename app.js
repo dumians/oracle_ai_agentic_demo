@@ -1,0 +1,384 @@
+const express = require('express');
+const cors = require('cors');
+const morgan = require('morgan');
+const dotenv = require('dotenv');
+const path = require('path');
+const ragEngine = require('./services/rag-engine');
+const coordinator = require('./agents/coordinator-agent');
+const adkFactory = require('./adk/agentic-factory');
+
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 8080;
+
+// In-Memory Telemetry Logs Capture
+const originalLog = console.log;
+const originalWarn = console.warn;
+const originalError = console.error;
+
+const systemLogs = [];
+
+function parseConsoleOutput(args) {
+    const fullStr = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+    const match = fullStr.match(/^\[(.*?)\]\s*(.*)/);
+    if (match) {
+        let tag = match[1].trim();
+        if (tag.includes('Graph Agent')) tag = 'Graph Agent';
+        else if (tag.includes('Spatial Agent')) tag = 'Spatial Agent';
+        else if (tag.includes('Oracle AI Database Agent') || tag.includes('Select AI')) tag = 'Oracle AI Database Agent';
+        else if (tag.includes('Inventory Action Agent') || tag.includes('Action Agent')) tag = 'Inventory Action Agent';
+        else if (tag.includes('RAG')) tag = 'RAG Agent';
+        else tag = 'Server';
+        return { agent: tag, message: match[2] || fullStr };
+    }
+    return { agent: 'Server', message: fullStr };
+}
+
+console.log = function (...args) {
+    originalLog.apply(console, args);
+    const parsed = parseConsoleOutput(args);
+    systemLogs.push({
+        timestamp: new Date().toISOString(),
+        agent: parsed.agent,
+        type: 'INFO',
+        message: parsed.message
+    });
+    if (systemLogs.length > 500) systemLogs.shift();
+};
+
+console.warn = function (...args) {
+    originalWarn.apply(console, args);
+    const parsed = parseConsoleOutput(args);
+    systemLogs.push({
+        timestamp: new Date().toISOString(),
+        agent: parsed.agent,
+        type: 'WARNING',
+        message: parsed.message
+    });
+    if (systemLogs.length > 500) systemLogs.shift();
+};
+
+console.error = function (...args) {
+    originalError.apply(console, args);
+    const parsed = parseConsoleOutput(args);
+    systemLogs.push({
+        timestamp: new Date().toISOString(),
+        agent: parsed.agent,
+        type: 'ERROR',
+        message: parsed.message
+    });
+    if (systemLogs.length > 500) systemLogs.shift();
+};
+
+// Active Agent Coordination Trace State
+let activeTrace = {
+    state: 'idle', // idle, processing, completed, error
+    lastQuery: '',
+    steps: []
+};
+
+// Settings Configurations Data
+let dbSources = [
+    { id: 'ds-oracle-rag', name: 'Oracle Database 26ai', domain: 'Oracle Vector RAG Core', status: 'online' },
+    { id: 'ds-oracle-erp', name: 'Oracle ERP Inventory', domain: 'Oracle Supply Chain ERP', status: 'online' },
+    { id: 'ds-gcp-vertex', name: 'GCP Vertex AI Engine', domain: 'GCP AI Reasoning Engine', status: 'online' },
+    { id: 'ds-mcp-toolbox', name: 'Hosted Oracle MCP', domain: 'Hosted MCP Schemas Bridge', status: 'online' }
+];
+
+let agents = [
+    {
+        id: 'coordinator',
+        name: 'Master Coordinator',
+        model: 'gemini-3.1-flash',
+        domain: 'Global',
+        status: 'online',
+        systemInstruction: 'Primary Inventory Gateway orchestrating RAG, Graph, Spatial, Select AI, and Action specialized agents workflows.',
+        mcpServers: [{ name: 'StitchMCP Server', mcpUrl: 'http://127.0.0.1:5001' }]
+    },
+    {
+        id: 'rag-agent',
+        name: 'RAG Agent',
+        model: 'gemini-2.5-flash',
+        domain: 'Oracle Vector RAG Core',
+        status: 'online',
+        systemInstruction: 'Executes vector-distance similarity searches against unstructured documentation chunks inside RAG_TAB.',
+        mcpServers: []
+    },
+    {
+        id: 'graph-agent',
+        name: 'Graph Agent',
+        model: 'gemini-2.5-flash',
+        domain: 'Oracle Supply Chain ERP',
+        status: 'online',
+        systemInstruction: 'Traverses supply chain nodes (Supplier, Plant, Port, Warehouse) to highlight dependencies and review delays.',
+        mcpServers: []
+    },
+    {
+        id: 'spatial-agent',
+        name: 'Spatial Agent',
+        model: 'gemini-2.5-flash',
+        domain: 'Oracle Supply Chain ERP',
+        status: 'online',
+        systemInstruction: 'Pinpoints geographic warehouse risk hotspots and routes excess available relief capacity safely.',
+        mcpServers: []
+    },
+    {
+        id: 'db-agent',
+        name: 'Oracle AI Database Agent',
+        model: 'gemini-2.5-pro',
+        domain: 'Oracle Vector RAG Core',
+        status: 'online',
+        systemInstruction: 'Queries database structures using natural language translation and generates interactive Chart.js JSON blocks.',
+        mcpServers: []
+    },
+    {
+        id: 'action-agent',
+        name: 'Inventory Action Agent',
+        model: 'gemini-2.5-flash',
+        domain: 'Oracle Supply Chain ERP',
+        status: 'online',
+        systemInstruction: 'Drafts secure inventory transfer actions gathering multi-agent spatial and graph evidence before dispatch.',
+        mcpServers: []
+    }
+];
+
+
+// Middleware
+app.use(cors());
+app.use(morgan('dev'));
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'uix')));
+
+// Routes
+
+// Healthcheck
+app.get('/api/v1/health', (req, res) => {
+    res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
+
+// Submit Query to Multi-Agent 
+app.post('/api/query', async (req, res) => {
+    const { query, mode } = req.body;
+    if (!query) {
+        return res.status(400).json({ error: 'Query is required' });
+    }
+
+    const isMockMode = (mode === 'mock');
+    activeTrace = {
+        state: 'processing',
+        lastQuery: query,
+        steps: []
+    };
+
+    // Responding immediately so client can start polling status
+    res.json({ status: 'started' });
+
+    // Process query in background
+    try {
+        const finalResult = await coordinator.runCoordinatorQuery(
+            query,
+            (step) => {
+                activeTrace.steps.push(step);
+                // Also append to live logs for trace observability
+                systemLogs.push({
+                    timestamp: step.timestamp || new Date().toISOString(),
+                    agent: step.agent,
+                    type: 'INFO',
+                    message: step.result
+                        ? `${step.query} -> Result: ${typeof step.result === 'object' ? JSON.stringify(step.result) : step.result}`
+                        : step.query
+                });
+            },
+            isMockMode
+        );
+
+        // Append final coordinator synthesis
+        activeTrace.steps.push({
+            agent: "Master Coordinator",
+            query: "Synthesized final response.",
+            result: finalResult,
+            timestamp: new Date().toISOString()
+        });
+
+        activeTrace.state = 'completed';
+    } catch (err) {
+        console.error("Coordinator execution error:", err);
+        activeTrace.steps.push({
+            agent: "Master Coordinator",
+            query: "Error encountered.",
+            result: `Execution failed: ${err.message}`,
+            timestamp: new Date().toISOString()
+        });
+        activeTrace.state = 'error';
+    }
+});
+
+// Get active trace timeline
+app.get('/api/status', (req, res) => {
+    res.json(activeTrace);
+});
+
+// Get settings data
+app.get('/api/settings', (req, res) => {
+    res.json({
+        dataSources: dbSources,
+        agents: agents,
+        mcpServerStatuses: {
+            StitchMCP: 'online'
+        }
+    });
+});
+
+// Trigger telemetry flush (Simulated)
+app.post('/api/refresh-telemetry', (req, res) => {
+    systemLogs.push({
+        timestamp: new Date().toISOString(),
+        agent: 'Server',
+        type: 'INFO',
+        message: 'Manual telemetry refresh initiated.'
+    });
+    res.json({ success: true });
+});
+
+// Get live backend logs
+app.get('/api/admin/logs', (req, res) => {
+    res.json({ logs: systemLogs });
+});
+
+
+// Edit active agent settings
+app.put('/api/config/agents/:id', (req, res) => {
+    const { id } = req.params;
+    const { name, model, domain, systemInstruction } = req.body;
+
+    const agentIndex = agents.findIndex(a => a.id === id);
+    if (agentIndex === -1) return res.status(404).json({ error: 'Agent not found' });
+
+    agents[agentIndex] = {
+        ...agents[agentIndex],
+        name: name || agents[agentIndex].name,
+        model: model || agents[agentIndex].model,
+        domain: domain !== undefined ? domain : agents[agentIndex].domain,
+        systemInstruction: systemInstruction || agents[agentIndex].systemInstruction
+    };
+
+    res.json(agents[agentIndex]);
+});
+
+// Edit registered data sources
+app.put('/api/config/data-sources/:id', (req, res) => {
+    const { id } = req.params;
+    const { name, domain, status } = req.body;
+
+    const dsIndex = dbSources.findIndex(d => d.id === id);
+    if (dsIndex === -1) return res.status(404).json({ error: 'Data source not found' });
+
+    dbSources[dsIndex] = {
+        ...dbSources[dsIndex],
+        name: name || dbSources[dsIndex].name,
+        domain: domain || dbSources[dsIndex].domain,
+        status: status || dbSources[dsIndex].status
+    };
+
+    res.json(dbSources[dsIndex]);
+});
+
+// Create new registered data source
+app.post('/api/config/data-sources', (req, res) => {
+    const { name, domain } = req.body;
+    if (!name || !domain) return res.status(400).json({ error: 'Name and domain are required' });
+
+    const newDs = {
+        id: `ds-${Date.now()}`,
+        name,
+        domain,
+        status: 'online'
+    };
+    dbSources.push(newDs);
+    res.json(newDs);
+});
+
+// Get MCP tools list
+app.get('/api/mcp/tools', (req, res) => {
+    res.json([
+        { name: 'query_oracle_rag_kb', server: 'StitchMCP', description: 'Search the Oracle Database knowledge base for documentation, features, and capabilities.' },
+        { name: 'get_supply_chain_graph', server: 'StitchMCP', description: 'Get the supply chain dependency graph for a specific product SKU.' },
+        { name: 'get_spatial_hotspots', server: 'StitchMCP', description: 'Get warehouse hotspots and relief routes for a specific product SKU.' },
+        { name: 'query_inventory_risk', server: 'StitchMCP', description: 'Ask natural language questions about database tables, perform checks, or generate visualizations.' },
+        { name: 'draft_inventory_action', server: 'StitchMCP', description: 'Draft an inventory transfer action based on graph, spatial, and external evidence.' }
+    ]);
+});
+
+// Inspect provisioned ADK reference agent contract runtime configurations
+app.get('/api/adk/inspect', (req, res) => {
+    const sampleAgent = adkFactory.getAgent('coordinator', agents);
+    res.json({
+        status: 'provisioned',
+        factoryAware: true,
+        agentProfile: {
+            id: sampleAgent.id,
+            name: sampleAgent.name,
+            model: sampleAgent.model,
+            domain: sampleAgent.domain,
+            contractCompliant: true
+        }
+    });
+});
+
+// Native RAG Endpoint (legacy support)
+app.post('/api/v1/query', async (req, res) => {
+    const { question, top_k } = req.body;
+    if (!question) {
+        return res.status(400).json({ error: 'Question is required' });
+    }
+    try {
+        const result = await ragEngine.answer(question, top_k || 5);
+        res.json(result);
+    } catch (err) {
+        console.error('RAG API Error:', err);
+        res.status(500).json({ error: 'Failed to process query', message: err.message });
+    }
+});
+
+// Native docs path
+app.get('/api-docs', (req, res) => {
+    res.json({
+        openapi: '3.0.0',
+        info: {
+            title: 'Oracle AI Database RAG API',
+            version: '1.0.0',
+            description: 'API for querying Oracle Database Knowledge Base with RAG'
+        }
+    });
+});
+
+// Catch-all to serve index.html for client-side routing simulation
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'uix', 'index.html'));
+});
+
+// Initialize and Start Server
+const startServer = async () => {
+    try {
+        await ragEngine.initialize();
+        console.log('✓ RAG Engine initialized successfully.');
+    } catch (err) {
+        console.error('⚠️ Warning: Failed to initialize Oracle Database pool during startup:', err.message);
+    }
+
+    try {
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`\n🚀 Oracle AI Agentic Demo (JS) running at:`);
+            console.log(`   - Local Hub: http://localhost:${PORT}`);
+            console.log(`   - API Query: http://localhost:${PORT}/api/query`);
+            console.log(`   - Legacy RAG: http://localhost:${PORT}/api/v1/query`);
+            console.log(`   - Health:    http://localhost:${PORT}/api/v1/health`);
+        });
+    } catch (err) {
+        console.error('Could not start Express server:', err.message);
+        process.exit(1);
+    }
+};
+
+startServer();
