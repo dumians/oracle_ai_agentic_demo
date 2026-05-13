@@ -95,7 +95,11 @@ show_menu() {
         4)
             print_info "Initializing standalone hosted Oracle MCP Toolbox Server daemon..."
             if command -v toolbox &> /dev/null; then
-                toolbox --tools-file tools.yaml
+                print_info "Exporting .env profile namespace variables into local environment context..."
+                set -a
+                source .env
+                set +a
+                toolbox --config tools.yaml
             else
                 print_error "Native executable 'toolbox' missing from shell path profile."
                 print_warn "Make sure MCP toolkit tools dependencies are pre-installed locally."

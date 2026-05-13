@@ -11,7 +11,7 @@ const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
 const { GoogleGenAI } = require('@google/genai');
-const oracleDbService = require('./services/oracle-db');
+const oracleDbService = require('../services/oracle-db');
 
 // Load workspace environment configuration
 dotenv.config();
@@ -42,7 +42,7 @@ async function verifyOracleConnection() {
     const dsn = process.env.DB_DSN || process.env.ORACLE_TNS_ALIAS || "Unset";
     const user = process.env.DB_USERNAME || process.env.ORACLE_USER || "Unset";
     const walletDir = process.env.DB_WALLET_DIR || "Unset";
-    
+
     const displayDsn = dsn.length > 40 ? `${dsn.substring(0, 35)}... (Full TSN Descriptor)` : dsn;
     console.log(`  Target DSN Alias  : ${displayDsn}`);
     console.log(`  Target User Profile: ${user}`);
@@ -54,7 +54,7 @@ async function verifyOracleConnection() {
     }
 
     printStatus("Oracle Profile Validation", "OK", "Required profile configuration parameters present.");
-    
+
     console.log("\n  Attempting secure physical connection loop pool init...");
     try {
         // Initialize pool
@@ -62,7 +62,7 @@ async function verifyOracleConnection() {
         printStatus("Oracle Database Connection Pool", "OK", "Service initial pool array state allocated successfully.");
 
         console.log("  Verifying physical listener ping via test execution payload...");
-        
+
         // Acquire connection and execute dummy statement racing against threshold
         const connectionResult = await Promise.race([
             (async () => {
@@ -109,7 +109,7 @@ async function verifyGcpConnection() {
 
     try {
         const ai = new GoogleGenAI({ enterprise: true, project, location });
-        
+
         try {
             // Perform light model metadata handshake or single-word generation race against timeout
             const testRes = await Promise.race([
@@ -129,7 +129,7 @@ async function verifyGcpConnection() {
             if (modelErr.status === 404 || (modelErr.message && modelErr.message.includes('404'))) {
                 printStatus("GCP GenAI Link Reachability", "WARN", `Model '${model}' not hosted in secondary region '${location}'. Attempting baseline fallback...`);
                 console.log(`  👉 Technical Note: Advanced foundation models like gemini-2.5-flash are progressively rolled out across main regional cloud endpoints. Testing secondary benchmark...`);
-                
+
                 const fallbackRes = await Promise.race([
                     ai.models.generateContent({
                         model: 'gemini-1.5-flash',
@@ -151,7 +151,7 @@ async function verifyGcpConnection() {
         const errNote = gcpErr.message?.includes('invalid_rapt') || gcpErr.message?.includes('invalid_grant')
             ? "Application Default Credentials session security policy token expired (invalid_rapt)."
             : gcpErr.message;
-            
+
         printStatus("GCP GenAI Link Reachability", "FAIL", errNote);
         if (gcpErr.message?.includes('invalid_rapt') || gcpErr.message?.includes('invalid_grant')) {
             console.log(`\n  👉 Fix Required: Execute 'gcloud auth application-default login' in terminal to authorize local context.`);
@@ -171,7 +171,7 @@ async function verifyMcpConnection() {
             fetch(mcpUrl),
             new Promise((_, reject) => setTimeout(() => reject(new Error("Bridge ping healthcheck unreachable")), 3000))
         ]);
-        
+
         // Whether status is 200, 404, or other HTTP code, connection itself was established
         printStatus("Hosted MCP Toolbox Reachability", "OK", `Bridge gateway TCP port listener active.`);
         return true;
@@ -186,7 +186,7 @@ async function runAllVerifications() {
     console.log(`\n${BOLD}==================================================================${RESET}`);
     console.log(`   🌐 SYSTEM CONNECTIVITY & ENVIRONMENT VALIDATION HARNESS`);
     console.log(`==================================================================${RESET}`);
-    
+
     await verifyOracleConnection();
     await verifyGcpConnection();
     await verifyMcpConnection();
