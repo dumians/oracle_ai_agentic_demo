@@ -8,4 +8,5 @@ spanner_tap.txt
 .oracle_wallet
 .gemini
 .antigravity
+.DS_Store
 .vscode

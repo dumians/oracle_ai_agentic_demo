@@ -7,14 +7,71 @@ This project is a JavaScript/Node.js implementation of a RAG (Retrieval-Augmente
 1.  **Express.js API:** Provides REST endpoints for querying the agent.
 2.  **Oracle Database 26ai:** Stores document chunks and their vector embeddings. Performs high-speed vector similarity search using `VECTOR_DISTANCE`.
 3.  **Vertex AI (text-embedding-004):** Generates embeddings for user queries.
-4.  **Vertex AI (Gemini 1.5 Flash):** Generates natural language responses grounded in the retrieved context.
+4.  **Vertex AI (Gemini 2.5 Flash):** Generates natural language responses grounded in the retrieved context.
 
-## Prerequisites
+This **Oracle AI Database Agent** addresses these limitations by combining:
+
+- Database introspection  
+- Fail-safe retries  
+- Distinct and range value discovery  
+- Chart and visualization generation  
+
+into a **single autonomous agent workflow**.
+
+---
+
+##  Architecture Overview
+
+```text
+User Query
+   ↓
+NL2SQL Task
+   ↓
+Agent Reasoning
+   ├── SQL_TOOL
+   ├── DISTINCT_VALUES_CHECK
+   ├── RANGE_VALUES_CHECK
+   └── GENERATE_CHART
+   ↓
+Final Verified Answer + Sources
+```
+
+The agent dynamically selects tools, retries intelligently, and produces **explainable outputs**.
+
+---
+
+##  Repository Contents
+
+```text
+.
+├── oracle_ai_database_agent_tool.sql
+│   ├── PL/SQL utility functions
+│   ├── Database-native analysis helpers
+│   └── AI tool registration
+│
+├── oracle_ai_database_agent.sql
+│   ├── Task definition
+│   ├── Agent creation
+│   ├── Team orchestration
+│   └── AI profile binding
+│
+└── README.md
+```
+
+---
+
+##  Prerequisites
+
+- Oracle Autonomous AI Database (26ai recommended)
+- Select AI enabled
+- Run as ADMIN 
+
 
 -   **Node.js** (v18 or higher)
 -   **Oracle Database 26ai** with vector features enabled.
 -   **Google Cloud Project** with Vertex AI API enabled.
 -   **GCP Credentials:** Authenticated via `gcloud auth application-default login`.
+
 
 ## Setup
 
@@ -29,6 +86,7 @@ This project is a JavaScript/Node.js implementation of a RAG (Retrieval-Augmente
     cp .env.template .env
     ```
 4.  **Database Setup:**
+
     Run the SQL script in `sql/setup.sql` on your Oracle Database to create the `RAG_TAB` table and vector index.
 
 ## Running the Demo
