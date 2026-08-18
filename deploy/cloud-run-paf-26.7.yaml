@@ -1,0 +1,135 @@
+# ==============================================================================
+# 🏛️ Google Cloud Run Service: Oracle AI Private Agent Factory 26.7.0 (PAIAS)
+# ==============================================================================
+# Official Docs: https://docs.oracle.com/en/database/oracle/agent-factory/26.4/paias/
+# Downloads:     https://www.oracle.com/database/technologies/private-agent-factory-downloads.html
+# ==============================================================================
+# This Knative manifest deploys the official Oracle AI Database Private Agent
+# Factory 26.7.0 container on Google Cloud Run with Serverless VPC Access,
+# mTLS wallet volume mounts, and Vertex AI Workload Identity.
+# ==============================================================================
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: oracle-paf-26-7
+  namespace: default
+  labels:
+    cloud.googleapis.com/location: eu-west3
+    app.kubernetes.io/name: oracle-private-agent-factory
+    app.kubernetes.io/version: "26.7.0"
+    app.kubernetes.io/component: paias-runtime
+    app.kubernetes.io/part-of: oracle-database-ai
+  annotations:
+    run.googleapis.com/ingress: internal-and-cloud-load-balancing
+    run.googleapis.com/vpc-access-connector: projects/total-vertex-469513-r8/locations/eu-west3/connectors/oracle-db-connector
+    run.googleapis.com/vpc-access-egress: all-traffic
+    run.googleapis.com/description: "Oracle AI Database Private Agent Factory (PAIAS 26.7.0) on GCP Cloud Run"
+
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "10"
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/startup-cpu-boost: "true"
+      labels:
+        app: oracle-paf-26-7
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      serviceAccountName: oracle-agent-factory-sa@total-vertex-469513-r8.iam.gserviceaccount.com
+
+      containers:
+      # Target image: Artifact Registry in europe-west3
+      - image: europe-west3-docker.pkg.dev/total-vertex-469513-r8/oracle-ai/private-agent-factory:26.7.0
+        name: paias-agent-factory-core
+        resources:
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+
+        env:
+        # PAIAS 26.7 Core Configuration
+        - name: PAIAS_VERSION
+          value: "26.7.0"
+        - name: PORT
+          value: "8080"
+        - name: AGENT_FACTORY_MODE
+          value: "production"
+
+        # Oracle Database@Google Cloud Private Endpoint Connection
+        - name: ORACLE_DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: oracle-db-credentials
+              key: username
+        - name: ORACLE_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: oracle-db-credentials
+              key: password
+        - name: ORACLE_DB_CONNECT_STRING
+          value: "tcps://adb.eu-frankfurt-1.oraclecloud.com:1522/dbaudit_high.adb.oraclecloud.com?ssl_server_cert_dn=CN=adb.eu-frankfurt-1.oraclecloud.com,OU=Oracle%20BMCS%20FRANKFURT,O=Oracle%20Corporation,L=Redwood%20City,ST=California,C=US"
+        - name: TNS_ADMIN
+          value: "/etc/oracle/wallet"
+
+        # Vertex AI Agent Engine & Gemini Model Integration
+        - name: VERTEX_AI_PROJECT
+          value: "total-vertex-469513-r8"
+        - name: VERTEX_AI_LOCATION
+          value: "eu-west3"
+        - name: GEMINI_MODEL_PRIMARY
+          value: "gemini-2.5-pro"
+        - name: GEMINI_MODEL_FLASH
+          value: "gemini-2.5-flash"
+        - name: GEMINI_EMBEDDING_MODEL
+          value: "text-embedding-005"
+
+        # Security & OCI Governance
+        - name: OCI_AUTH_TYPE
+          value: "gcp_federated_workload_identity"
+        - name: AUDIT_LOGGING_ENABLED
+          value: "true"
+        - name: SQL_EXECUTION_MAX_ROWS
+          value: "5000"
+
+        # Volume Mounts for Oracle mTLS Wallet Secret
+        volumeMounts:
+        - name: oracle-mtls-wallet
+          mountPath: /etc/oracle/wallet
+          readOnly: true
+
+        # Health Probes
+        startupProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 12
+
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8080
+          periodSeconds: 15
+          timeoutSeconds: 3
+
+      # Secret Volume definition
+      volumes:
+      - name: oracle-mtls-wallet
+        secret:
+          secretName: oracle-adbs-mtls-wallet
+          items:
+          - key: cwallet.sso
+            path: cwallet.sso
+          - key: tnsnames.ora
+            path: tnsnames.ora
+          - key: sqlnet.ora
+            path: sqlnet.ora

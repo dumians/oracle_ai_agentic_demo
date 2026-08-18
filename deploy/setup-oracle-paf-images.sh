@@ -132,11 +132,17 @@ pull_from_ocr() {
 # Workflow 2: Load from downloaded OTN Archive
 # ------------------------------------------------------------------------------
 load_from_archive() {
-    echo -e "\n${BOLD}${BLUE}--- Workflow 2: Loading from Downloaded OTN Archive ---${RESET}"
+    echo -e "\n${BOLD}${BLUE}--- Workflow 2: Loading from Downloaded Oracle Archive ---${RESET}"
     echo -e "Download the official container archive from:"
     echo -e "👉 ${BOLD}https://www.oracle.com/database/technologies/private-agent-factory-downloads.html${RESET}\n"
 
-    read -p "Enter absolute or relative path to container archive (.tar.gz / .tar): " ARCHIVE_PATH
+    DEFAULT_DOWNLOAD_PATH="$(ls ~/Downloads/oracle_agent_factory_x86_*.tar.gz 2>/dev/null | head -n 1 || echo '')"
+    if [ -n "$DEFAULT_DOWNLOAD_PATH" ]; then
+        echo -e "Found candidate archive in Downloads: ${BOLD}${CYAN}${DEFAULT_DOWNLOAD_PATH}${RESET}"
+    fi
+
+    read -p "Enter path to archive [Default: ${DEFAULT_DOWNLOAD_PATH:-./oracle_agent_factory.tar.gz}]: " ARCHIVE_PATH
+    ARCHIVE_PATH="${ARCHIVE_PATH:-$DEFAULT_DOWNLOAD_PATH}"
 
     if [ ! -f "$ARCHIVE_PATH" ]; then
         echo -e "${RED}[ERROR] File not found at: ${ARCHIVE_PATH}${RESET}"
@@ -144,16 +150,40 @@ load_from_archive() {
         return
     fi
 
-    echo -e "Loading container image archive with docker load..."
-    docker load -i "${ARCHIVE_PATH}"
+    # Extract version if pattern matches
+    DETECTED_VER="$(basename "$ARCHIVE_PATH" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" || echo "$PAF_VERSION")"
+    TARGET_VER_TAG="gcr.io/${PROJECT_ID}/oracle-private-agent-factory:${DETECTED_VER}"
+    TARGET_LATEST_TAG="gcr.io/${PROJECT_ID}/oracle-private-agent-factory:latest"
 
-    echo -e "Tagging image for local and GCP deployment..."
-    docker tag "oracle/private-agent-factory:${PAF_VERSION}" "${LOCAL_TAG}" 2>/dev/null || \
-    docker tag "private-agent-factory:${PAF_VERSION}" "${LOCAL_TAG}" 2>/dev/null || true
-    
-    docker tag "${LOCAL_TAG}" "${TARGET_GCR_IMAGE}"
-    docker tag "${LOCAL_TAG}" "${TARGET_AR_IMAGE}"
-    echo -e "${GREEN}✓ Successfully loaded and tagged image!${RESET}"
+    echo -e "\nDetected Agent Factory Version: ${BOLD}${GREEN}${DETECTED_VER}${RESET}"
+    echo -e "Target GCR Image: ${BOLD}${CYAN}${TARGET_VER_TAG}${RESET}\n"
+
+    if command -v docker &> /dev/null; then
+        echo -e "Loading container image archive with docker load..."
+        docker load -i "${ARCHIVE_PATH}"
+        docker tag "oracle/private-agent-factory:${DETECTED_VER}" "${LOCAL_TAG}" 2>/dev/null || true
+        docker tag "${LOCAL_TAG}" "${TARGET_VER_TAG}"
+        docker tag "${LOCAL_TAG}" "${TARGET_LATEST_TAG}"
+        echo -e "${GREEN}✓ Successfully loaded and tagged image with Docker!${RESET}"
+    else
+        echo -e "${YELLOW}[INFO] Docker not detected locally. Submitting direct Cloud Build from extracted kit...${RESET}"
+        STAGE_DIR="/tmp/paf_build_${DETECTED_VER}"
+        mkdir -p "${STAGE_DIR}"
+        echo -e "Extracting applied-ai build kit to ${STAGE_DIR}..."
+        tar -xzf "${ARCHIVE_PATH}" -C "${STAGE_DIR}" ./applied-ai
+        # Clean internal ADE symlinks
+        rm -f "${STAGE_DIR}/applied-ai/kit/agent_factory/third_party/python3/bin/.ade_path" \
+              "${STAGE_DIR}/applied-ai/kit/agent_factory/third_party/python3/lib/.ade_path" 2>/dev/null || true
+
+        echo -e "Submitting build to Google Cloud Build..."
+        CLOUDSDK_AUTH_ACCESS_TOKEN=$(gcloud auth application-default print-access-token 2>/dev/null || echo '') \
+        gcloud builds submit \
+            --tag "${TARGET_VER_TAG}" \
+            --project="${PROJECT_ID}" \
+            "${STAGE_DIR}/applied-ai"
+        
+        echo -e "${GREEN}✓ Container built and pushed to GCR: ${TARGET_VER_TAG}${RESET}"
+    fi
     show_menu
 }
 

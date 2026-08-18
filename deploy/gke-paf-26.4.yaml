@@ -27,7 +27,7 @@ spec:
       serviceAccountName: oracle-agent-factory-sa
       containers:
       - name: paias-core
-        image: gcr.io/total-vertex-469513-r8/oracle-private-agent-factory:26.4
+        image: europe-west3-docker.pkg.dev/total-vertex-469513-r8/oracle-ai/private-agent-factory:26.7.0
         imagePullPolicy: IfNotPresent
         resources:
           limits:

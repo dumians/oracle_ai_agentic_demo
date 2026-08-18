@@ -10,3 +10,7 @@ spanner_tap.txt
 .antigravity
 .DS_Store
 .vscode
+build_paf/
+build_paf/*.*
+build_paf_26_7/
+build_paf_26_7/*
