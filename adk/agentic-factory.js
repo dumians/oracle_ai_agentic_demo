@@ -3,16 +3,19 @@
  * ADK: Agentic Factory
  * ==============================================================================
  * Core provisioning engine designed to dynamically instantiate, configure, and
- * cache specialized domain GenericAgent instances to scale  topologies.
+ * cache specialized domain GenericAgent instances to scale topologies.
+ * Integrates with the Enterprise Private Agent Factory.
  * ==============================================================================
  */
 
 const GenericAgent = require('./generic-agent');
+const privateAgentFactory = require('./private-agent-factory');
 
 class AgenticFactory {
     constructor() {
         // In-memory cache registry to retain initialized agent persona sessions
         this.agentCache = new Map();
+        this.privateFactory = privateAgentFactory;
     }
 
     /**
@@ -22,6 +25,21 @@ class AgenticFactory {
     getAgent(agentId, configTemplates = []) {
         if (this.agentCache.has(agentId)) {
             return this.agentCache.get(agentId);
+        }
+
+        // Check private agent factory first
+        const privateAgent = this.privateFactory.getAgent(agentId);
+        if (privateAgent) {
+            const template = {
+                id: privateAgent.id,
+                name: privateAgent.name,
+                model: privateAgent.model,
+                domain: privateAgent.domain,
+                systemInstruction: privateAgent.systemRole
+            };
+            const agentInstance = new GenericAgent(template);
+            this.agentCache.set(agentId, agentInstance);
+            return agentInstance;
         }
 
         // Locate configuration template targeting the specific agent ID
@@ -38,6 +56,13 @@ class AgenticFactory {
         this.agentCache.set(agentId, agentInstance);
 
         return agentInstance;
+    }
+
+    /**
+     * Expose the Private Agent Factory instance
+     */
+    getPrivateFactory() {
+        return this.privateFactory;
     }
 
     /**

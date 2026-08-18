@@ -177,6 +177,64 @@ class OracleDBService {
         }
     }
 
+    async runPrivateAgent(agentId, prompt) {
+        let connection;
+        try {
+            connection = await this.pool.getConnection();
+            const teamName = `${agentId.toUpperCase()}_TEAM`;
+            
+            // Try calling via package first, fallback to DBMS_CLOUD_AI_AGENT.RUN
+            const sql = `
+                SELECT DBMS_CLOUD_AI_AGENT.RUN(
+                    team_name => :teamName,
+                    prompt => :prompt
+                ) AS response FROM DUAL
+            `;
+
+            const result = await connection.execute(sql, {
+                teamName: teamName,
+                prompt: prompt
+            }, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+
+            if (result.rows && result.rows[0]) {
+                let response = result.rows[0].RESPONSE || result.rows[0].response;
+                if (response && typeof response.getData === 'function') {
+                    response = await response.getData();
+                }
+                return response;
+            }
+            return null;
+        } catch (err) {
+            console.error(`Error running Private Agent [${agentId}]:`, err.message);
+            throw err;
+        } finally {
+            if (connection) {
+                await connection.close();
+            }
+        }
+    }
+
+    async getDatabaseAgentCatalog() {
+        let connection;
+        try {
+            connection = await this.pool.getConnection();
+            const sql = `
+                SELECT AGENT_ID, AGENT_NAME, DOMAIN_SCOPE, MODEL_PROFILE, DEPLOYMENT_TARGET, STATUS, TO_CHAR(CREATED_AT, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as CREATED_AT
+                FROM ORACLE_AI_AGENT_CATALOG
+                WHERE STATUS = 'ACTIVE'
+            `;
+            const result = await connection.execute(sql, {}, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+            return result.rows || [];
+        } catch (err) {
+            console.warn('Notice: ORACLE_AI_AGENT_CATALOG table not yet initialized in database.', err.message);
+            return [];
+        } finally {
+            if (connection) {
+                await connection.close();
+            }
+        }
+    }
+
     async close() {
         if (this.pool) {
             try {

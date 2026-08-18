@@ -6,6 +6,7 @@ const path = require('path');
 const ragEngine = require('./services/rag-engine');
 const coordinator = require('./agents/coordinator-agent');
 const adkFactory = require('./adk/agentic-factory');
+const privateAgentFactory = require('./adk/private-agent-factory');
 
 dotenv.config();
 
@@ -13,6 +14,12 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 // In-Memory Telemetry Logs Capture
+let activeFactoryTrace = {
+    state: 'idle',
+    agentId: '',
+    lastQuery: '',
+    steps: []
+};
 const originalLog = console.log;
 const originalWarn = console.warn;
 const originalError = console.error;
@@ -323,6 +330,140 @@ app.get('/api/adk/inspect', (req, res) => {
             domain: sampleAgent.domain,
             contractCompliant: true
         }
+    });
+});
+
+// ==============================================================================
+// Oracle DB AI Private Agent Factory Endpoints
+// ==============================================================================
+
+// 1. Get all enterprise blueprints
+app.get('/api/factory/templates', (req, res) => {
+    res.json(privateAgentFactory.listBlueprints());
+});
+
+// 2. Get all provisioned private agents
+app.get('/api/factory/agents', (req, res) => {
+    res.json(privateAgentFactory.listProvisionedAgents());
+});
+
+// 3. Dynamically provision a new private agent
+app.post('/api/factory/provision', (req, res) => {
+    const { name, domain, model, deploymentTarget, systemRole, taskInstruction, tools, presetQueries } = req.body;
+    if (!name) {
+        return res.status(400).json({ error: 'Agent name is required' });
+    }
+    const newAgent = privateAgentFactory.provisionAgent({
+        name,
+        domain: domain || 'Oracle Enterprise Data',
+        model: model || 'gemini-3.1-flash',
+        deploymentTarget: deploymentTarget || 'HYBRID',
+        systemRole: systemRole || 'You are an autonomous private database agent.',
+        taskInstruction: taskInstruction || 'Analyze user query: {query} and respond accurately with data grounding.',
+        tools: tools || ['query_inventory_risk', 'query_oracle_rag_kb'],
+        presetQueries: presetQueries || ['What insights can you provide about the database?']
+    });
+    res.status(201).json(newAgent);
+});
+
+// 4. Execute query on a specific Private Agent
+app.post('/api/factory/execute', async (req, res) => {
+    const { agentId, prompt, mode } = req.body;
+    if (!agentId || !prompt) {
+        return res.status(400).json({ error: 'agentId and prompt are required' });
+    }
+
+    const isMockMode = (mode === 'mock');
+    activeFactoryTrace = {
+        state: 'processing',
+        agentId: agentId,
+        lastQuery: prompt,
+        steps: []
+    };
+
+    // Return immediate receipt for async polling, or execute and return
+    try {
+        const result = await privateAgentFactory.executeAgent(
+            agentId,
+            prompt,
+            (step) => {
+                activeFactoryTrace.steps.push(step);
+                systemLogs.push({
+                    timestamp: step.timestamp || new Date().toISOString(),
+                    agent: step.agent || 'Private Agent',
+                    type: 'INFO',
+                    message: step.result
+                        ? `${step.query} -> Result: ${typeof step.result === 'object' ? JSON.stringify(step.result) : step.result}`
+                        : step.query
+                });
+            },
+            isMockMode
+        );
+
+        activeFactoryTrace.steps.push({
+            agent: result.agentName || "Private Agent",
+            query: "Synthesized contract response.",
+            result: result.data,
+            timestamp: new Date().toISOString()
+        });
+
+        activeFactoryTrace.state = 'completed';
+        res.json(result);
+    } catch (err) {
+        console.error("Private Agent execution error:", err);
+        activeFactoryTrace.state = 'error';
+        res.status(500).json({ error: 'Private Agent execution failed', message: err.message });
+    }
+});
+
+// 5. Get Private Agent execution trace
+app.get('/api/factory/trace', (req, res) => {
+    res.json(activeFactoryTrace);
+});
+
+// 6. Decommission a private agent
+app.delete('/api/factory/agents/:id', (req, res) => {
+    const { id } = req.params;
+    const success = privateAgentFactory.decommissionAgent(id);
+    if (!success) {
+        return res.status(404).json({ error: 'Agent not found' });
+    }
+    res.json({ success: true, message: `Agent ${id} decommissioned.` });
+});
+
+// 7. Export Database-Native PL/SQL Installer script
+app.get('/api/factory/export/plsql/:id', (req, res) => {
+    const { id } = req.params;
+    const agent = privateAgentFactory.getAgent(id) || privateAgentFactory.getBlueprint(id);
+    if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+    }
+    const plsql = privateAgentFactory.generatePLSQL(agent);
+    res.json({ agentId: id, plsql });
+});
+
+// 8. Export GCP Container Manifest (Cloud Run / GKE)
+app.get('/api/factory/export/gcp-manifest/:id', (req, res) => {
+    const { id } = req.params;
+    const agent = privateAgentFactory.getAgent(id) || privateAgentFactory.getBlueprint(id);
+    if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+    }
+    const manifest = privateAgentFactory.generateGCPManifest(agent);
+    res.json({ agentId: id, manifest });
+});
+
+// 9. GCP Container diagnostics and status
+app.get('/api/factory/gcp/status', (req, res) => {
+    res.json(privateAgentFactory.getGCPContainerStatus());
+});
+
+// 10. Private Agent metrics
+app.get('/api/factory/metrics', (req, res) => {
+    res.json({
+        totalExecutions: privateAgentFactory.metrics.length,
+        activeAgentsCount: privateAgentFactory.listProvisionedAgents().length,
+        metrics: privateAgentFactory.metrics
     });
 });
 

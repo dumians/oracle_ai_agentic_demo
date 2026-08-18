@@ -69,30 +69,46 @@ check_environment() {
 show_menu() {
     print_header
     echo -e "${BOLD}Please select an execution mode:${RESET}\n"
-    echo -e "  ${BOLD}${YELLOW}1)${RESET} 🌐 Start the Unified  Web Hub & Express API ${BOLD}${GREEN}(Recommended)${RESET}"
-    echo -e "  ${BOLD}${YELLOW}2)${RESET} 💻 Start the Multi-Agent CLI Coordinator ${BOLD}(Interactive Terminal)${RESET}"
-    echo -e "  ${BOLD}${YELLOW}3)${RESET} 🧪 Run Simulated Direct Database Connection Proof ${BOLD}(scratch_test.js)${RESET}"
-    echo -e "  ${BOLD}${YELLOW}4)${RESET} 📦 Start Hosted Oracle MCP Toolbox Server ${BOLD}(genai-toolbox)${RESET}"
-    echo -e "  ${BOLD}${YELLOW}5)${RESET} 🔍 Run Systematic Environment Validation & Networking Test"
-    echo -e "  ${BOLD}${YELLOW}6)${RESET} 🚪 Exit\n"
+    echo -e "  ${BOLD}${YELLOW}1)${RESET} 🌐 Start the Unified Web Hub, Private Agent Factory & A2UI Portal ${BOLD}${GREEN}(Recommended)${RESET}"
+    echo -e "  ${BOLD}${YELLOW}2)${RESET} 🏭 Test Private Agent Factory CLI (Execute Blueprints in Terminal)"
+    echo -e "  ${BOLD}${YELLOW}3)${RESET} 💻 Start the Multi-Agent Coordinator CLI ${BOLD}(Interactive Terminal)${RESET}"
+    echo -e "  ${BOLD}${YELLOW}4)${RESET} 🧪 Run Simulated Direct Database Connection Proof ${BOLD}(scratch_test.js)${RESET}"
+    echo -e "  ${BOLD}${YELLOW}5)${RESET} 📦 Start Hosted Oracle MCP Toolbox Server ${BOLD}(genai-toolbox)${RESET}"
+    echo -e "  ${BOLD}${YELLOW}6)${RESET} 🚀 Deploy Private Agent Factory to GCP Cloud Run (Container)"
+    echo -e "  ${BOLD}${YELLOW}7)${RESET} 🔍 Run Systematic Environment Validation & Networking Test"
+    echo -e "  ${BOLD}${YELLOW}8)${RESET} 🚪 Exit\n"
     echo -e "${BOLD}${CYAN}==================================================================${RESET}"
     
-    read -p "Enter choice [1-6]: " choice
+    read -p "Enter choice [1-8]: " choice
     case $choice in
         1)
-            print_info "Spinning up the primary Express Server Hub and Web Gateway UI..."
+            print_info "Spinning up Express Server Hub, Private Agent Factory, and A2UI Gateway..."
             print_info "Access portal interface natively at: http://localhost:8080"
             npm start
             ;;
         2)
+            print_info "Testing Private Agent Factory execution against Supply Chain Risk Auditor..."
+            node -e "
+            const factory = require('./adk/private-agent-factory');
+            (async () => {
+                console.log('\n--- Active Private Agent Blueprints ---');
+                factory.listBlueprints().forEach(b => console.log(' • [' + b.id + '] ' + b.name + ' (' + b.deploymentTarget + ')'));
+                console.log('\nExecuting Supply Chain Risk Auditor...');
+                const res = await factory.executeAgent('supply_chain_auditor', 'What inventory action should we take for SKU-500?', (s) => console.log(' [Trace]', s.query), true);
+                console.log('\nResult:\n' + res.data);
+                console.log('\nMetadata:\n', JSON.stringify(res.metadata, null, 2));
+            })();
+            "
+            ;;
+        3)
             print_info "Launching localized interactive multi-agent coordinator CLI session..."
             node agents/coordinator-agent.js
             ;;
-        3)
+        4)
             print_info "Executing database direct isolation test harness (scratch_test.js)..."
             node scratch_test.js
             ;;
-        4)
+        5)
             print_info "Initializing standalone hosted Oracle MCP Toolbox Server daemon..."
             if command -v toolbox &> /dev/null; then
                 print_info "Exporting .env profile namespace variables into local environment context..."
@@ -105,16 +121,24 @@ show_menu() {
                 print_warn "Make sure MCP toolkit tools dependencies are pre-installed locally."
             fi
             ;;
-        5)
+        6)
+            print_info "Launching automated GCP Cloud Run container deployment..."
+            if [ -f "deploy/deploy-gcp-cloudrun.sh" ]; then
+                bash deploy/deploy-gcp-cloudrun.sh
+            else
+                print_error "deploy/deploy-gcp-cloudrun.sh not found."
+            fi
+            ;;
+        7)
             print_info "Running end-to-end systematic connectivity test harness (.env)..."
             node test_env_connections.js
             ;;
-        6)
+        8)
             print_success "Exiting demo orchestration sequence. Goodbye!"
             exit 0
             ;;
         *)
-            print_error "Invalid selection. Please choose an index between 1 and 6."
+            print_error "Invalid selection. Please choose an index between 1 and 8."
             sleep 1
             show_menu
             ;;

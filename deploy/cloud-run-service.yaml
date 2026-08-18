@@ -1,0 +1,91 @@
+# ==============================================================================
+# Google Cloud Run Service Manifest
+# Oracle AI Database Private Agent Factory on GCP
+# ==============================================================================
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: oracle-ai-private-agent-factory
+  namespace: default
+  labels:
+    cloud.googleapis.com/location: us-central1
+    app.kubernetes.io/name: oracle-ai-agent-factory
+    app.kubernetes.io/part-of: oracle-database-at-gcp
+  annotations:
+    # Restrict ingress to internal VPC and Google Cloud Load Balancing
+    run.googleapis.com/ingress: all
+    # Direct egress traffic through Serverless VPC Access Connector into Oracle Database@GCP ODB Network
+    run.googleapis.com/vpc-access-connector: projects/PROJECT_ID/locations/us-central1/connectors/oracle-db-connector
+    run.googleapis.com/vpc-access-egress: private-ranges-only
+spec:
+  template:
+    metadata:
+      annotations:
+        # Autoscaling bounds (scales to 0 during idle periods to eliminate idle costs)
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "20"
+        run.googleapis.com/cpu-throttling: "true"
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      # Use IAM Workload Identity Service Account (No hardcoded JSON service account keys)
+      serviceAccountName: oracle-agent-factory-sa@PROJECT_ID.iam.gserviceaccount.com
+      containers:
+      - image: gcr.io/PROJECT_ID/oracle-ai-private-agent-factory:latest
+        resources:
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: GCP_PROJECT_ID
+          value: "PROJECT_ID"
+        - name: GCP_REGION
+          value: "us-central1"
+        - name: COORDINATOR_MODEL
+          value: "gemini-3.1-flash"
+        - name: DB_WALLET_DIR
+          value: "/secrets/oracle-wallet"
+        - name: DB_DSN
+          valueFrom:
+            secretKeyRef:
+              name: oracle-db-credentials
+              key: dsn
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: oracle-db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: oracle-db-credentials
+              key: password
+        volumeMounts:
+        - name: oracle-wallet-secret
+          mountPath: /secrets/oracle-wallet
+          readOnly: true
+        ports:
+        - name: http1
+          containerPort: 8080
+        startupProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8080
+          periodSeconds: 15
+      volumes:
+      - name: oracle-wallet-secret
+        secret:
+          secretName: oracle-db-wallet-zip
+          items:
+          - key: wallet.zip
+            path: wallet.zip

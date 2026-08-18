@@ -1464,3 +1464,535 @@ body {
         stroke-dashoffset: -100;
     }
 }
+
+/* -------------------------------------------------------------------------
+   PRIVATE AGENT FACTORY & AGENTIC FRAMEWORK STYLES
+   ------------------------------------------------------------------------- */
+
+/* KPI Grid */
+.factory-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.kpi-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    border-radius: 14px;
+}
+
+.kpi-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.kpi-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.kpi-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: hsl(var(--text-muted));
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.kpi-value {
+    font-family: 'Outfit', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    margin: 2px 0;
+}
+
+.kpi-subtext {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.kpi-sub-icon {
+    width: 12px;
+    height: 12px;
+}
+
+/* Factory Sub-Navigation Bar */
+.factory-subnav {
+    display: flex;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.factory-subnav-btn {
+    background: transparent;
+    border: none;
+    color: hsl(var(--text-muted));
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: var(--transition-smooth);
+}
+
+.factory-subnav-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.factory-subnav-btn.active {
+    color: #fff;
+    background: hsl(var(--primary));
+    box-shadow: 0 4px 14px 0 hsl(var(--primary) / 0.4);
+}
+
+.factory-subview {
+    display: none;
+    animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.factory-subview.active {
+    display: block;
+}
+
+/* Blueprint Gallery Grid */
+.blueprint-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.blueprint-card {
+    padding: 20px;
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: var(--transition-smooth);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.blueprint-card:hover {
+    transform: translateY(-2px);
+    border-color: hsl(var(--primary) / 0.4);
+    box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.15);
+}
+
+.blueprint-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.blueprint-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 4px;
+}
+
+.blueprint-domain {
+    font-size: 11px;
+    color: hsl(var(--primary));
+    font-weight: 600;
+}
+
+.blueprint-desc {
+    font-size: 12px;
+    color: hsl(var(--text-muted));
+    line-height: 1.5;
+    margin-bottom: 16px;
+    flex-grow: 1;
+}
+
+.blueprint-tools-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+}
+
+.tool-tag {
+    font-size: 10px;
+    font-family: 'Fira Code', monospace;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 3px 8px;
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.blueprint-footer {
+    display: flex;
+    gap: 8px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.blueprint-footer button {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 11px;
+}
+
+/* Badges for deployment targets */
+.badge-target {
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge-target.hybrid {
+    background: rgba(99, 102, 241, 0.2);
+    color: #818cf8;
+    border: 1px solid rgba(99, 102, 241, 0.4);
+}
+
+.badge-target.db_native {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.badge-target.gcp_container {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+/* Forge Builder Styles */
+.form-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.tools-checkbox-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.tool-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.85);
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.tool-checkbox-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.tool-checkbox-item input[type="checkbox"] {
+    accent-color: hsl(var(--primary));
+}
+
+.forge-preview-box {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 14px;
+}
+
+.preview-item {
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.preview-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: hsl(var(--text-muted));
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.preview-item code {
+    font-family: 'Fira Code', monospace;
+    font-size: 11px;
+    color: hsl(var(--primary));
+    display: block;
+    word-break: break-all;
+}
+
+/* Sandbox Console Styles */
+.sandbox-layout {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 20px;
+}
+
+.glass-select {
+    width: 100%;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #fff;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    outline: none;
+}
+
+.preset-pills {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.preset-pill {
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 11px;
+    cursor: pointer;
+    text-align: left;
+    transition: var(--transition-smooth);
+}
+
+.preset-pill:hover {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.4);
+    color: #fff;
+}
+
+.badge-status {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.badge-status.idle {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.badge-status.processing {
+    background: rgba(99, 102, 241, 0.2);
+    color: #818cf8;
+    animation: pulseGlow 1.5s infinite alternate;
+}
+
+.badge-status.completed {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+}
+
+.sandbox-trace-stream {
+    max-height: 240px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 0;
+}
+
+.sandbox-rendered-result {
+    padding: 16px 20px;
+    border-radius: 12px;
+    border-left: 3px solid hsl(var(--success));
+}
+
+.result-header {
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.result-body {
+    font-size: 13px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* Topology Diagram Styles */
+.topology-container {
+    padding: 24px;
+    border-radius: 16px;
+}
+
+.topology-diagram {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 30px 20px;
+    background: rgba(10, 15, 30, 0.5);
+    border-radius: 14px;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.topo-node {
+    flex: 1;
+    max-width: 220px;
+    padding: 20px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    text-align: center;
+    position: relative;
+}
+
+.topo-badge {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.topo-icon {
+    width: 32px;
+    height: 32px;
+    margin: 8px auto;
+    display: block;
+}
+
+.topo-node h4 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    color: #fff;
+    margin-bottom: 2px;
+}
+
+.topo-node p {
+    font-size: 11px;
+    color: hsl(var(--text-muted));
+    margin-bottom: 8px;
+}
+
+.topo-meta {
+    font-size: 10px;
+    font-family: 'Fira Code', monospace;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.topo-connector {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.topo-line {
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--success)));
+    position: relative;
+}
+
+.topo-tag {
+    font-size: 9px;
+    font-weight: 600;
+    color: hsl(var(--text-muted));
+    background: rgba(0, 0, 0, 0.4);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.topo-detail-card {
+    padding: 16px;
+    border-radius: 12px;
+}
+
+.topo-detail-card h4 {
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.topo-detail-card p {
+    font-size: 11px;
+    color: hsl(var(--text-muted));
+    line-height: 1.5;
+}
+
+/* Modal Large & Code Viewer */
+.modal-lg {
+    max-width: 720px;
+    width: 90%;
+}
+
+.code-viewer-container {
+    max-height: 400px;
+    overflow-y: auto;
+    background: #0d1117;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 16px;
+}
+
+.code-viewer-container pre {
+    margin: 0;
+}
+
+.code-viewer-container code {
+    font-family: 'Fira Code', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #e6edf3;
+    white-space: pre-wrap;
+    word-break: break-word;
+}

@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  oracle-agent-factory:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: oracle-ai-private-agent-factory:latest
+    container_name: oracle-ai-agent-factory
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=development
+      - PORT=8080
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-oracle-gcp-ai-demo}
+      - GCP_REGION=${GCP_REGION:-us-central1}
+      - DB_USERNAME=${DB_USERNAME:-ADMIN}
+      - DB_PASSWORD=${DB_PASSWORD:-Welcome123##}
+      - DB_DSN=${DB_DSN:-adbs_high}
+      - DB_WALLET_DIR=/secrets/oracle-wallet
+      - COORDINATOR_MODEL=${COORDINATOR_MODEL:-gemini-3.1-flash}
+    volumes:
+      - ./.oracle_wallet:/secrets/oracle-wallet:ro
+      - ~/.config/gcloud:/home/appuser/.config/gcloud:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped

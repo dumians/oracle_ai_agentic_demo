@@ -1,0 +1,14 @@
+node_modules
+npm-debug.log
+.DS_Store
+.git
+.gitignore
+.env
+.env.local
+.oracle_wallet
+*.zip
+.vscode
+.gemini
+.antigravity
+Tests/
+*.log

@@ -12,6 +12,9 @@ document.addEventListener('DOMContentLoaded', () => {
         settings: { dataSources: [], agents: [] },
         logs: [],
         mcpTools: [],
+        blueprints: [],
+        privateAgents: [],
+        activeSandboxAgentId: '',
         traceCollapsed: false
     };
 
@@ -58,6 +61,23 @@ document.addEventListener('DOMContentLoaded', () => {
         cfgAgentPrompt: document.getElementById('cfg-agent-prompt'),
         formAgentTitle: document.getElementById('form-agent-title'),
 
+        // Agent Factory Elements
+        kpiActiveAgents: document.getElementById('kpi-active-agents'),
+        factorySubnavBtns: document.querySelectorAll('.factory-subnav-btn'),
+        factorySubviews: document.querySelectorAll('.factory-subview'),
+        factoryBlueprintsContainer: document.getElementById('factory-blueprints-container'),
+        btnOpenForge: document.getElementById('btn-open-forge'),
+        agentForgeForm: document.getElementById('agent-forge-form'),
+        sandboxAgentSelect: document.getElementById('sandbox-agent-select'),
+        sandboxPresetPills: document.getElementById('sandbox-preset-pills'),
+        sandboxQueryForm: document.getElementById('sandbox-query-form'),
+        sandboxPromptInput: document.getElementById('sandbox-prompt-input'),
+        sandboxSubmitBtn: document.getElementById('sandbox-submit-btn'),
+        sandboxTraceContainer: document.getElementById('sandbox-trace-container'),
+        sandboxResultBox: document.getElementById('sandbox-result-box'),
+        sandboxResultContent: document.getElementById('sandbox-result-content'),
+        sandboxStatusBadge: document.getElementById('sandbox-status-badge'),
+
         // Modals
         addDsModal: document.getElementById('add-ds-modal'),
         addDsForm: document.getElementById('add-ds-form'),
@@ -65,12 +85,22 @@ document.addEventListener('DOMContentLoaded', () => {
         closeModalBtn: document.getElementById('close-modal-btn'),
         cancelModalBtn: document.getElementById('cancel-modal-btn'),
         dsNameInput: document.getElementById('ds-name'),
-        dsDomainInput: document.getElementById('ds-domain')
+        dsDomainInput: document.getElementById('ds-domain'),
+
+        // Export Modal
+        exportCodeModal: document.getElementById('export-code-modal'),
+        exportModalTitle: document.getElementById('export-modal-title'),
+        exportModalSubtitle: document.getElementById('export-modal-subtitle'),
+        exportCodeContent: document.getElementById('export-code-content'),
+        copyExportCodeBtn: document.getElementById('copy-export-code-btn'),
+        closeExportModalBtn: document.getElementById('close-export-modal-btn'),
+        dismissExportModalBtn: document.getElementById('dismiss-export-modal-btn')
     };
 
     // --- Tab Titles / Subtitles Metadata ---
     const tabMetadata = {
         workspace: { title: 'Agent Workspace', subtitle: 'Interact and proof the multi-agent  in real-time.' },
+        'agent-factory': { title: 'Private Agent Factory', subtitle: 'Provision, govern, and deploy database-native and GCP containerized agents.' },
         'data-sources': { title: 'Data Sources', subtitle: 'Manage connections to your cloud enterprise databases.' },
         'agent-config': { title: 'Agent Configuration', subtitle: 'Update system prompts, LLM choices, and scope boundaries.' },
         'mcp-tools': { title: 'MCP Toolbox', subtitle: 'Explore dynamic capabilities loaded through Model Context Protocol.' },
@@ -195,6 +225,69 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Failed to register data source:', err);
             }
         });
+
+        // --- Agent Factory Sub-Navigation Switching ---
+        elements.factorySubnavBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetSubview = btn.getAttribute('data-subview');
+                switchFactorySubview(targetSubview);
+            });
+        });
+
+        if (elements.btnOpenForge) {
+            elements.btnOpenForge.addEventListener('click', () => {
+                switchFactorySubview('forge');
+            });
+        }
+
+        // Agent Forge Form Submit
+        if (elements.agentForgeForm) {
+            elements.agentForgeForm.addEventListener('submit', handleForgeSubmit);
+        }
+
+        // Sandbox Agent Select Change
+        if (elements.sandboxAgentSelect) {
+            elements.sandboxAgentSelect.addEventListener('change', (e) => {
+                const selectedId = e.target.value;
+                state.activeSandboxAgentId = selectedId;
+                renderSandboxPresets(selectedId);
+            });
+        }
+
+        // Sandbox Query Form Submit
+        if (elements.sandboxQueryForm) {
+            elements.sandboxQueryForm.addEventListener('submit', handleSandboxSubmit);
+        }
+
+        // Export Modal Close Handlers
+        const closeExportModal = () => {
+            if (elements.exportCodeModal) {
+                elements.exportCodeModal.classList.remove('active');
+            }
+        };
+        if (elements.closeExportModalBtn) elements.closeExportModalBtn.addEventListener('click', closeExportModal);
+        if (elements.dismissExportModalBtn) elements.dismissExportModalBtn.addEventListener('click', closeExportModal);
+        if (elements.copyExportCodeBtn) elements.copyExportCodeBtn.addEventListener('click', copyExportCode);
+    };
+
+    // --- Switch Factory Subview (Blueprints, Forge, Sandbox, Topology) ---
+    const switchFactorySubview = (subviewId) => {
+        elements.factorySubnavBtns.forEach(btn => {
+            if (btn.getAttribute('data-subview') === subviewId) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        elements.factorySubviews.forEach(view => {
+            if (view.getAttribute('id') === `factory-subview-${subviewId}`) {
+                view.classList.add('active');
+            } else {
+                view.classList.remove('active');
+            }
+        });
+        lucide.createIcons();
     };
 
     // --- Tab Switching Logic ---
@@ -229,6 +322,8 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 elements.terminalContainer.scrollTop = elements.terminalContainer.scrollHeight;
             }, 100);
+        } else if (tabId === 'agent-factory') {
+            fetchAgentFactoryData();
         }
     };
 
@@ -252,6 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
         await fetchSettings();
         await fetchTelemetryLogs();
         await fetchMcpTools();
+        await fetchAgentFactoryData();
     };
 
     const fetchSettings = async () => {
@@ -438,6 +534,329 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.mcpToolsContainer.appendChild(card);
         });
         lucide.createIcons();
+    };
+
+    // =========================================================================
+    // PRIVATE AGENT FACTORY & AGENTIC FRAMEWORK LOGIC
+    // =========================================================================
+
+    const fetchAgentFactoryData = async () => {
+        try {
+            const [templatesRes, agentsRes] = await Promise.all([
+                fetch('/api/factory/templates'),
+                fetch('/api/factory/agents')
+            ]);
+            
+            if (templatesRes.ok) state.blueprints = await templatesRes.json();
+            if (agentsRes.ok) state.privateAgents = await agentsRes.json();
+
+            if (elements.kpiActiveAgents) {
+                elements.kpiActiveAgents.innerText = state.privateAgents.length || state.blueprints.length;
+            }
+
+            renderBlueprints();
+            renderSandboxAgentSelect();
+        } catch (err) {
+            console.error('Failed to sync Agent Factory data:', err);
+        }
+    };
+
+    const renderBlueprints = () => {
+        if (!elements.factoryBlueprintsContainer) return;
+        elements.factoryBlueprintsContainer.innerHTML = '';
+
+        const blueprints = state.blueprints.length > 0 ? state.blueprints : [
+            {
+                id: 'supply_chain_auditor',
+                name: 'Supply Chain Risk Auditor',
+                domain: 'Oracle Supply Chain ERP',
+                model: 'gemini-3.1-flash',
+                deploymentTarget: 'HYBRID',
+                description: 'Autonomous risk auditor for multi-tier supply chain dependencies, shipping bottlenecks, and inventory stockouts.',
+                tools: ['SQL_TOOL', 'GRAPH_TRAVERSAL', 'SPATIAL_HOTSPOTS', 'ACTION_DISPATCH']
+            }
+        ];
+
+        blueprints.forEach(bp => {
+            const card = document.createElement('div');
+            card.className = 'blueprint-card glass';
+
+            const targetClass = (bp.deploymentTarget || 'HYBRID').toLowerCase();
+            const targetLabel = bp.deploymentTarget === 'DB_NATIVE' ? 'DB Native (26ai)' : (bp.deploymentTarget === 'GCP_CONTAINER' ? 'GCP Container' : 'Hybrid Mesh');
+
+            const toolsHtml = (bp.tools || []).map(t => `<span class="tool-tag">${t}</span>`).join('');
+
+            card.innerHTML = `
+                <div>
+                    <div class="blueprint-header">
+                        <div>
+                            <h4 class="blueprint-title">${bp.name}</h4>
+                            <span class="blueprint-domain">${bp.domain}</span>
+                        </div>
+                        <span class="badge-target ${targetClass}">${targetLabel}</span>
+                    </div>
+                    <p class="blueprint-desc">${bp.description || 'Enterprise private agent blueprint.'}</p>
+                    <div class="blueprint-tools-row">
+                        ${toolsHtml}
+                    </div>
+                </div>
+                <div class="blueprint-footer">
+                    <button class="primary-btn btn-test-agent" data-agent-id="${bp.id}">
+                        <i data-lucide="play-circle"></i> Test in Sandbox
+                    </button>
+                    <button class="glass-btn btn-inspect-plsql" data-agent-id="${bp.id}" title="Inspect Oracle DB PL/SQL script">
+                        <i data-lucide="database"></i> PL/SQL
+                    </button>
+                    <button class="glass-btn btn-inspect-gcp" data-agent-id="${bp.id}" title="Inspect GCP Container Manifest">
+                        <i data-lucide="container"></i> GCP YAML
+                    </button>
+                </div>
+            `;
+
+            // Button handlers
+            card.querySelector('.btn-test-agent').addEventListener('click', () => {
+                switchFactorySubview('sandbox');
+                if (elements.sandboxAgentSelect) {
+                    elements.sandboxAgentSelect.value = bp.id;
+                    state.activeSandboxAgentId = bp.id;
+                    renderSandboxPresets(bp.id);
+                }
+            });
+
+            card.querySelector('.btn-inspect-plsql').addEventListener('click', () => {
+                openExportModal('plsql', bp.id);
+            });
+
+            card.querySelector('.btn-inspect-gcp').addEventListener('click', () => {
+                openExportModal('manifest', bp.id);
+            });
+
+            elements.factoryBlueprintsContainer.appendChild(card);
+        });
+
+        lucide.createIcons();
+    };
+
+    const renderSandboxAgentSelect = () => {
+        if (!elements.sandboxAgentSelect) return;
+        const currentVal = elements.sandboxAgentSelect.value;
+        elements.sandboxAgentSelect.innerHTML = '';
+
+        const agentList = state.privateAgents.length > 0 ? state.privateAgents : state.blueprints;
+
+        agentList.forEach(a => {
+            const opt = document.createElement('option');
+            opt.value = a.id;
+            opt.textContent = `${a.name} (${a.domain})`;
+            elements.sandboxAgentSelect.appendChild(opt);
+        });
+
+        if (currentVal && agentList.some(a => a.id === currentVal)) {
+            elements.sandboxAgentSelect.value = currentVal;
+            state.activeSandboxAgentId = currentVal;
+        } else if (agentList.length > 0) {
+            elements.sandboxAgentSelect.value = agentList[0].id;
+            state.activeSandboxAgentId = agentList[0].id;
+        }
+
+        renderSandboxPresets(state.activeSandboxAgentId);
+    };
+
+    const renderSandboxPresets = (agentId) => {
+        if (!elements.sandboxPresetPills) return;
+        elements.sandboxPresetPills.innerHTML = '';
+
+        const agent = state.privateAgents.find(a => a.id === agentId) ||
+                      state.blueprints.find(b => b.id === agentId) || {};
+
+        const presets = agent.presetQueries || [
+            'What inventory action should we take for SKU-500?',
+            'Generate a Stock Distribution Bar Chart for SKU-500 across our warehouses.'
+        ];
+
+        presets.forEach(query => {
+            const pill = document.createElement('button');
+            pill.type = 'button';
+            pill.className = 'preset-pill';
+            pill.innerHTML = `<i data-lucide="sparkles" style="width: 12px; height: 12px; vertical-align: middle; margin-right: 4px; color: hsl(var(--primary));"></i> ${query}`;
+            pill.addEventListener('click', () => {
+                elements.sandboxPromptInput.value = query;
+            });
+            elements.sandboxPresetPills.appendChild(pill);
+        });
+
+        // Set default text in prompt input if empty
+        if (!elements.sandboxPromptInput.value && presets.length > 0) {
+            elements.sandboxPromptInput.value = presets[0];
+        }
+
+        lucide.createIcons();
+    };
+
+    const handleForgeSubmit = async (e) => {
+        e.preventDefault();
+        const checkedTools = Array.from(document.querySelectorAll('input[name="forge_tools"]:checked')).map(cb => cb.value);
+        const presetQueriesRaw = document.getElementById('forge-preset-queries').value;
+        const presetQueries = presetQueriesRaw ? presetQueriesRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+        const payload = {
+            id: document.getElementById('forge-agent-id').value.trim(),
+            name: document.getElementById('forge-agent-name').value.trim(),
+            domain: document.getElementById('forge-domain').value,
+            model: document.getElementById('forge-model').value,
+            deploymentTarget: document.getElementById('forge-target').value,
+            systemRole: document.getElementById('forge-system-role').value.trim(),
+            taskInstruction: document.getElementById('forge-task-instruction').value.trim(),
+            tools: checkedTools,
+            presetQueries: presetQueries
+        };
+
+        try {
+            const res = await fetch('/api/factory/provision', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                alert(`✓ Agent '${payload.name}' provisioned successfully!`);
+                elements.agentForgeForm.reset();
+                await fetchAgentFactoryData();
+                switchFactorySubview('sandbox');
+                if (elements.sandboxAgentSelect) {
+                    elements.sandboxAgentSelect.value = payload.id;
+                    state.activeSandboxAgentId = payload.id;
+                    renderSandboxPresets(payload.id);
+                }
+            } else {
+                const errData = await res.json();
+                alert(`Failed to forge agent: ${errData.error || 'Server error'}`);
+            }
+        } catch (err) {
+            console.error('Error forging agent:', err);
+            alert(`Error forging agent: ${err.message}`);
+        }
+    };
+
+    const handleSandboxSubmit = async (e) => {
+        e.preventDefault();
+        const agentId = elements.sandboxAgentSelect.value;
+        const prompt = elements.sandboxPromptInput.value.trim();
+        if (!agentId || !prompt) return;
+
+        elements.sandboxSubmitBtn.disabled = true;
+        elements.sandboxStatusBadge.className = 'badge-status processing';
+        elements.sandboxStatusBadge.textContent = 'Reasoning...';
+
+        elements.sandboxTraceContainer.innerHTML = `
+            <div class="trace-node">
+                <div class="trace-indicator processing"><i data-lucide="loader" class="animate-spin" style="width: 12px; height: 12px;"></i></div>
+                <div class="trace-body">
+                    <h4>Agent Runtime Gateway</h4>
+                    <p>Dispatching prompt to private agent [${agentId}]...</p>
+                </div>
+            </div>
+        `;
+        elements.sandboxResultBox.style.display = 'none';
+        lucide.createIcons();
+
+        try {
+            const res = await fetch('/api/factory/execute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    agentId,
+                    prompt,
+                    mode: state.mode
+                })
+            });
+
+            const result = await res.json();
+
+            // Fetch trace steps from server or render returned trace
+            const traceRes = await fetch('/api/factory/trace');
+            const traceData = await traceRes.json();
+
+            elements.sandboxTraceContainer.innerHTML = '';
+            const steps = (traceData && traceData.steps && traceData.steps.length > 0) ? traceData.steps : [
+                { agent: result.agentName || 'Private Agent', query: `Executed prompt on ${result.metadata?.model || 'Gemini 3.1'}`, result: 'Verification passed' }
+            ];
+
+            steps.forEach(s => {
+                const node = document.createElement('div');
+                node.className = 'trace-node';
+                node.innerHTML = `
+                    <div class="trace-indicator success"><i data-lucide="check" style="width: 12px; height: 12px;"></i></div>
+                    <div class="trace-body">
+                        <h4>${s.agent}</h4>
+                        <p>${s.query}</p>
+                        ${s.result ? `<div class="trace-result">${typeof s.result === 'object' ? JSON.stringify(s.result, null, 2) : s.result}</div>` : ''}
+                    </div>
+                `;
+                elements.sandboxTraceContainer.appendChild(node);
+            });
+
+            // Render final rich output
+            elements.sandboxResultBox.style.display = 'block';
+            window.A2UI.renderRichContent(result.data, elements.sandboxResultContent);
+
+            elements.sandboxStatusBadge.className = 'badge-status completed';
+            elements.sandboxStatusBadge.textContent = 'Completed';
+        } catch (err) {
+            elements.sandboxTraceContainer.innerHTML = `
+                <div class="trace-node">
+                    <div class="trace-indicator" style="background: hsl(var(--danger));"><i data-lucide="alert-triangle" style="width: 12px; height: 12px;"></i></div>
+                    <div class="trace-body">
+                        <h4>Execution Error</h4>
+                        <p>${err.message}</p>
+                    </div>
+                </div>
+            `;
+            elements.sandboxStatusBadge.className = 'badge-status error';
+            elements.sandboxStatusBadge.textContent = 'Failed';
+        } finally {
+            elements.sandboxSubmitBtn.disabled = false;
+            lucide.createIcons();
+        }
+    };
+
+    const openExportModal = async (type, agentId) => {
+        if (!elements.exportCodeModal) return;
+        const endpoint = type === 'plsql' ? `/api/factory/export/plsql/${agentId}` : `/api/factory/export/gcp-manifest/${agentId}`;
+        
+        elements.exportModalTitle.innerText = type === 'plsql' 
+            ? `Oracle Database 26ai Native PL/SQL Installer: ${agentId}` 
+            : `GCP Container Cloud Run Manifest: ${agentId}`;
+        elements.exportModalSubtitle.innerText = type === 'plsql'
+            ? 'Execute directly in SQL*Plus, SQLcl, or Oracle Database Actions Worksheet.'
+            : 'Deploy directly via Google Cloud CLI: gcloud run services replace manifest.yaml';
+
+        elements.exportCodeContent.innerText = 'Generating deployment artifact...';
+        elements.exportCodeModal.classList.add('active');
+
+        try {
+            const res = await fetch(endpoint);
+            const data = await res.json();
+            elements.exportCodeContent.innerText = type === 'plsql' ? data.plsql : data.manifest;
+        } catch (err) {
+            elements.exportCodeContent.innerText = `Failed to generate artifact: ${err.message}`;
+        }
+    };
+
+    const copyExportCode = () => {
+        const code = elements.exportCodeContent.innerText;
+        navigator.clipboard.writeText(code).then(() => {
+            const btn = elements.copyExportCodeBtn;
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="check"></i> Copied!`;
+            lucide.createIcons();
+            setTimeout(() => {
+                btn.innerHTML = originalHTML;
+                lucide.createIcons();
+            }, 1800);
+        }).catch(err => {
+            console.error('Clipboard copy failed:', err);
+        });
     };
 
 

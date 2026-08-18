@@ -1,0 +1,124 @@
+# ==============================================================================
+# Google Kubernetes Engine (GKE) Deployment Manifest
+# Oracle AI Database Private Agent Factory Cluster
+# ==============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oracle-ai-private-agent-factory
+  namespace: default
+  labels:
+    app: oracle-ai-agent-factory
+    component: agent-runtime
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: oracle-ai-agent-factory
+  template:
+    metadata:
+      labels:
+        app: oracle-ai-agent-factory
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/api/factory/metrics"
+    spec:
+      serviceAccountName: oracle-agent-factory-k8s-sa
+      nodeSelector:
+        iam.gke.io/gke-metadata-server-enabled: "true"
+      containers:
+      - name: agent-factory
+        image: gcr.io/PROJECT_ID/oracle-ai-private-agent-factory:latest
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: GCP_PROJECT_ID
+          value: "PROJECT_ID"
+        - name: GCP_REGION
+          value: "us-central1"
+        - name: COORDINATOR_MODEL
+          value: "gemini-3.1-flash"
+        - name: DB_WALLET_DIR
+          value: "/secrets/oracle-wallet"
+        - name: DB_DSN
+          value: "adbs_high"
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: oracle-db-secrets
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: oracle-db-secrets
+              key: password
+        volumeMounts:
+        - name: oracle-wallet-mount
+          mountPath: /secrets/oracle-wallet
+          readOnly: true
+        ports:
+        - name: http
+          containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+      - name: oracle-wallet-mount
+        secret:
+          secretName: oracle-wallet-secret
+---
+# Internal Cluster Service / Internal Load Balancer
+apiVersion: v1
+kind: Service
+metadata:
+  name: oracle-ai-agent-factory-svc
+  namespace: default
+  labels:
+    app: oracle-ai-agent-factory
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+  selector:
+    app: oracle-ai-agent-factory
+---
+# Horizontal Pod Autoscaler for high-throughput multi-agent bursts
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: oracle-ai-agent-factory-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: oracle-ai-private-agent-factory
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70

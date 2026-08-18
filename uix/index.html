@@ -40,6 +40,11 @@
                         <span>Agent Workspace</span>
                         <span class="nav-badge">Live</span>
                     </button>
+                    <button class="nav-item" data-tab="agent-factory">
+                        <i data-lucide="factory"></i>
+                        <span>Private Agent Factory</span>
+                        <span class="nav-badge" style="background: rgba(99, 102, 241, 0.2); color: #818cf8;">Factory</span>
+                    </button>
                 </nav>
             </div>
 
@@ -286,8 +291,344 @@
                             <!-- Logs dynamically appended here -->
                         </div>
                     </section>
-                </div>
+                <!-- TAB 8: Private Agent Factory & Agentic Framework -->
+                <div id="tab-agent-factory" class="tab-pane">
+                    <!-- KPI Banner -->
+                    <div class="factory-kpi-grid">
+                        <div class="kpi-card glass">
+                            <div class="kpi-icon" style="color: #6366f1; background: rgba(99, 102, 241, 0.15);">
+                                <i data-lucide="bot"></i>
+                            </div>
+                            <div class="kpi-content">
+                                <span class="kpi-label">Active Private Agents</span>
+                                <h3 class="kpi-value" id="kpi-active-agents">5</h3>
+                                <span class="kpi-subtext"><i data-lucide="check-circle" class="kpi-sub-icon color-green"></i> 100% Contract Compliant</span>
+                            </div>
+                        </div>
+                        <div class="kpi-card glass">
+                            <div class="kpi-icon" style="color: #10b981; background: rgba(16, 185, 129, 0.15);">
+                                <i data-lucide="database"></i>
+                            </div>
+                            <div class="kpi-content">
+                                <span class="kpi-label">In-Database Teams</span>
+                                <h3 class="kpi-value">Oracle 26ai</h3>
+                                <span class="kpi-subtext">DBMS_CLOUD_AI_AGENT Native</span>
+                            </div>
+                        </div>
+                        <div class="kpi-card glass">
+                            <div class="kpi-icon" style="color: #3b82f6; background: rgba(59, 130, 246, 0.15);">
+                                <i data-lucide="container"></i>
+                            </div>
+                            <div class="kpi-content">
+                                <span class="kpi-label">GCP Container Runtime</span>
+                                <h3 class="kpi-value">Cloud Run / GKE</h3>
+                                <span class="kpi-subtext">Auto-scale 0 to 20 Instances</span>
+                            </div>
+                        </div>
+                        <div class="kpi-card glass">
+                            <div class="kpi-icon" style="color: #f59e0b; background: rgba(245, 158, 11, 0.15);">
+                                <i data-lucide="shield-check"></i>
+                            </div>
+                            <div class="kpi-content">
+                                <span class="kpi-label">Zero-Trust Isolation</span>
+                                <h3 class="kpi-value">TCPS :1522</h3>
+                                <span class="kpi-subtext">mTLS Auto-Login Wallet</span>
+                            </div>
+                        </div>
+                    </div>
 
+                    <!-- Factory Hub Navigation Sub-Tabs / View Switcher -->
+                    <div class="factory-subnav glass">
+                        <button class="factory-subnav-btn active" data-subview="blueprints">
+                            <i data-lucide="layout-grid"></i> Enterprise Blueprints
+                        </button>
+                        <button class="factory-subnav-btn" data-subview="forge">
+                            <i data-lucide="cpu"></i> Agent Forge (Builder)
+                        </button>
+                        <button class="factory-subnav-btn" data-subview="sandbox">
+                            <i data-lucide="play-circle"></i> Interactive Sandbox
+                        </button>
+                        <button class="factory-subnav-btn" data-subview="topology">
+                            <i data-lucide="git-branch"></i> GCP Container Topology
+                        </button>
+                    </div>
+
+                    <!-- SUBVIEW 1: Blueprints Catalog -->
+                    <div id="factory-subview-blueprints" class="factory-subview active">
+                        <div class="panel-card glass">
+                            <div class="panel-header">
+                                <div>
+                                    <h3>Enterprise Private Agent Blueprints</h3>
+                                    <p>Deploy specialized autonomous agents directly to Oracle Database 26ai or containerize on GCP.</p>
+                                </div>
+                                <button id="btn-open-forge" class="primary-btn">
+                                    <i data-lucide="plus-circle"></i> Forge Custom Agent
+                                </button>
+                            </div>
+                            <div class="blueprint-grid" id="factory-blueprints-container">
+                                <!-- Blueprints dynamically rendered here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SUBVIEW 2: Agent Forge Builder -->
+                    <div id="factory-subview-forge" class="factory-subview">
+                        <div class="config-layout">
+                            <!-- Left Form -->
+                            <section class="panel-card glass lg-col-2">
+                                <div class="panel-header">
+                                    <div>
+                                        <h3>The Agent Forge</h3>
+                                        <p>Define custom autonomous agent parameters, tools, and execution targets.</p>
+                                    </div>
+                                </div>
+                                <form id="agent-forge-form" class="panel-form">
+                                    <div class="form-row-2">
+                                        <div class="form-group">
+                                            <label for="forge-agent-id">Agent Identifier (Key)</label>
+                                            <input type="text" id="forge-agent-id" placeholder="e.g. inventory_risk_sentinel" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="forge-agent-name">Agent Display Name</label>
+                                            <input type="text" id="forge-agent-name" placeholder="e.g. Inventory Risk Sentinel" required>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-row-2">
+                                        <div class="form-group">
+                                            <label for="forge-domain">Data Domain Scope</label>
+                                            <select id="forge-domain">
+                                                <option value="Oracle Supply Chain ERP">Oracle Supply Chain ERP</option>
+                                                <option value="Oracle Database Core Diagnostics">Oracle Database Core Diagnostics</option>
+                                                <option value="Oracle Financials General Ledger">Oracle Financials General Ledger</option>
+                                                <option value="Oracle Unified Audit & Security">Oracle Unified Audit & Security</option>
+                                                <option value="Oracle IoT & Asset Management">Oracle IoT & Asset Management</option>
+                                                <option value="Global / Unified Mesh">Global / Unified Mesh</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="forge-model">LLM Foundation Model</label>
+                                            <select id="forge-model">
+                                                <option value="gemini-3.1-flash">Gemini 3.1 Flash (Ultra-fast Routing)</option>
+                                                <option value="gemini-3.1-pro">Gemini 3.1 Pro (Complex Reasoning)</option>
+                                                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="forge-target">Deployment & Orchestration Target</label>
+                                        <select id="forge-target">
+                                            <option value="HYBRID">Hybrid (Oracle DB @GCP + GCP Cloud Run / GKE)</option>
+                                            <option value="DB_NATIVE">Database Native (DBMS_CLOUD_AI_AGENT in Oracle 26ai)</option>
+                                            <option value="GCP_CONTAINER">GCP Container Microservice (Cloud Run / GKE)</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="forge-system-role">Agent Persona & System Instruction</label>
+                                        <textarea id="forge-system-role" rows="3" placeholder="You are an autonomous private agent..." required></textarea>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="forge-task-instruction">Task Execution Guideline</label>
+                                        <textarea id="forge-task-instruction" rows="2" placeholder="Analyze the user query: {query} using available tools..." required></textarea>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>Active Tool Bindings</label>
+                                        <div class="tools-checkbox-grid">
+                                            <label class="tool-checkbox-item">
+                                                <input type="checkbox" name="forge_tools" value="query_inventory_risk" checked>
+                                                <span>SQL_TOOL (Select AI NL2SQL)</span>
+                                            </label>
+                                            <label class="tool-checkbox-item">
+                                                <input type="checkbox" name="forge_tools" value="query_oracle_rag_kb" checked>
+                                                <span>VECTOR_SEARCH (Oracle 26ai RAG_TAB)</span>
+                                            </label>
+                                            <label class="tool-checkbox-item">
+                                                <input type="checkbox" name="forge_tools" value="get_supply_chain_graph" checked>
+                                                <span>GRAPH_TRAVERSAL (Supply Chain PGQL)</span>
+                                            </label>
+                                            <label class="tool-checkbox-item">
+                                                <input type="checkbox" name="forge_tools" value="get_spatial_hotspots" checked>
+                                                <span>SPATIAL_HOTSPOTS (SDO_GEOMETRY Routes)</span>
+                                            </label>
+                                            <label class="tool-checkbox-item">
+                                                <input type="checkbox" name="forge_tools" value="draft_inventory_action" checked>
+                                                <span>ACTION_DISPATCH (ERP Write / Policy)</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="forge-preset-queries">Demo Quick Prompts (Comma-separated)</label>
+                                        <input type="text" id="forge-preset-queries" placeholder="e.g. What inventory action should we take for SKU-500?, Generate a stock distribution chart">
+                                    </div>
+
+                                    <div class="flex-row gap-2 mt-4">
+                                        <button type="submit" class="primary-btn flex-1">
+                                            <i data-lucide="flame"></i> Forge & Provision Agent
+                                        </button>
+                                    </div>
+                                </form>
+                            </section>
+
+                            <!-- Right Quick Preview -->
+                            <section class="panel-card glass">
+                                <h3>Provisioning Target Architecture</h3>
+                                <p class="subtitle">Real-time deployment schema preview</p>
+                                <div class="forge-preview-box">
+                                    <div class="preview-item">
+                                        <span class="preview-title"><i data-lucide="database" class="color-indigo"></i> Oracle DB Registration:</span>
+                                        <code>ORACLE_AI_AGENT_CATALOG</code>
+                                    </div>
+                                    <div class="preview-item">
+                                        <span class="preview-title"><i data-lucide="cpu" class="color-green"></i> In-DB Package:</span>
+                                        <code>DBMS_CLOUD_AI_AGENT.CREATE_AGENT</code>
+                                    </div>
+                                    <div class="preview-item">
+                                        <span class="preview-title"><i data-lucide="container" class="color-blue"></i> Container Image:</span>
+                                        <code>gcr.io/PROJECT_ID/oracle-ai-agent</code>
+                                    </div>
+                                    <div class="preview-item">
+                                        <span class="preview-title"><i data-lucide="shield" class="color-amber"></i> Security Profile:</span>
+                                        <code>TCPS 1522 mTLS + Workload Identity</code>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+
+                    <!-- SUBVIEW 3: Interactive Sandbox Console -->
+                    <div id="factory-subview-sandbox" class="factory-subview">
+                        <div class="sandbox-layout">
+                            <!-- Left Sandbox Controller -->
+                            <section class="panel-card glass sandbox-controller">
+                                <div class="panel-header">
+                                    <div>
+                                        <h3>Agent Sandbox Console</h3>
+                                        <p>Execute real-time inquiries against provisioned private agents.</p>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="sandbox-agent-select">Select Target Private Agent</label>
+                                    <select id="sandbox-agent-select" class="glass-select">
+                                        <!-- Dynamically populated with active agents -->
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Quick Preset Inquiries</label>
+                                    <div class="preset-pills" id="sandbox-preset-pills">
+                                        <!-- Dynamically populated based on selected agent -->
+                                    </div>
+                                </div>
+
+                                <form id="sandbox-query-form" class="mt-4">
+                                    <div class="form-group">
+                                        <label for="sandbox-prompt-input">Agent Query Prompt</label>
+                                        <textarea id="sandbox-prompt-input" rows="4" placeholder="Enter prompt to execute on private agent..." required></textarea>
+                                    </div>
+                                    <button type="submit" id="sandbox-submit-btn" class="primary-btn w-full">
+                                        <i data-lucide="play"></i> Execute on Private Agent
+                                    </button>
+                                </form>
+                            </section>
+
+                            <!-- Right Sandbox Execution Output & Trace -->
+                            <section class="panel-card glass sandbox-output-pane">
+                                <div class="panel-header border-bottom">
+                                    <div class="flex-row align-center gap-2">
+                                        <i data-lucide="activity" class="color-indigo"></i>
+                                        <h3>Private Execution Output & Trace</h3>
+                                    </div>
+                                    <div id="sandbox-status-badge" class="badge-status idle">Ready</div>
+                                </div>
+
+                                <!-- Step-by-step Trace Timeline -->
+                                <div class="sandbox-trace-stream scrollbar" id="sandbox-trace-container">
+                                    <div class="trace-empty-state">
+                                        <i data-lucide="bot"></i>
+                                        <p>No active execution</p>
+                                        <span>Select an agent, choose a prompt preset, and click Execute to observe live multi-agent reasoning.</span>
+                                    </div>
+                                </div>
+
+                                <!-- Final Rendered Rich A2UI Box -->
+                                <div class="sandbox-rendered-result glass mt-4" id="sandbox-result-box" style="display: none;">
+                                    <div class="result-header">
+                                        <span class="result-title"><i data-lucide="check-circle" class="color-green"></i> Verified Output (KI Data Contract Compliant)</span>
+                                    </div>
+                                    <div class="result-body" id="sandbox-result-content"></div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+
+                    <!-- SUBVIEW 4: GCP Container Topology -->
+                    <div id="factory-subview-topology" class="factory-subview">
+                        <div class="panel-card glass">
+                            <div class="panel-header">
+                                <div>
+                                    <h3>Oracle Database@Google Cloud Private Agent Architecture</h3>
+                                    <p>Sub-millisecond direct interconnect between GCP Container Runtimes and Oracle Autonomous Database 26ai.</p>
+                                </div>
+                            </div>
+
+                            <div class="topology-container glass">
+                                <div class="topology-diagram">
+                                    <div class="topo-node gcp-node">
+                                        <div class="topo-badge">GCP Serverless</div>
+                                        <i data-lucide="container" class="topo-icon"></i>
+                                        <h4>Cloud Run / GKE</h4>
+                                        <p>Node.js Agent Factory</p>
+                                        <span class="topo-meta">Autoscaling (0–20)</span>
+                                    </div>
+                                    <div class="topo-connector">
+                                        <span class="topo-line"></span>
+                                        <span class="topo-tag">Serverless VPC Connector</span>
+                                    </div>
+                                    <div class="topo-node psc-node">
+                                        <div class="topo-badge">Network Security</div>
+                                        <i data-lucide="shield-check" class="topo-icon color-amber"></i>
+                                        <h4>Private Service Connect</h4>
+                                        <p>TCPS Port 1522</p>
+                                        <span class="topo-meta">mTLS cwallet.sso</span>
+                                    </div>
+                                    <div class="topo-connector">
+                                        <span class="topo-line"></span>
+                                        <span class="topo-tag">&lt; 1ms Interconnect</span>
+                                    </div>
+                                    <div class="topo-node odb-node">
+                                        <div class="topo-badge">Oracle AI Core</div>
+                                        <i data-lucide="database" class="topo-icon color-green"></i>
+                                        <h4>Oracle ADB-S 26ai</h4>
+                                        <p>DBMS_CLOUD_AI_AGENT</p>
+                                        <span class="topo-meta">Vector + Graph + Spatial</span>
+                                    </div>
+                                </div>
+
+                                <div class="grid-3 mt-6">
+                                    <div class="topo-detail-card glass">
+                                        <h4><i data-lucide="cpu" class="color-indigo"></i> Reasoning Engine</h4>
+                                        <p>GCP Vertex AI Gemini 3.1 Flash / Pro handles natural language decomposition and multi-agent intent routing.</p>
+                                    </div>
+                                    <div class="topo-detail-card glass">
+                                        <h4><i data-lucide="database" class="color-green"></i> In-Database Memory</h4>
+                                        <p>Vectors stored in Oracle 26ai <code>VECTOR</code> columns with HNSW indexes for sub-millisecond approximate nearest neighbor lookups.</p>
+                                    </div>
+                                    <div class="topo-detail-card glass">
+                                        <h4><i data-lucide="lock" class="color-amber"></i> Identity & Access</h4>
+                                        <p>GCP Workload Identity authenticates with Secret Manager without embedding long-lived credentials.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
@@ -320,6 +661,33 @@
                     <button type="submit" class="primary-btn">Register</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Export Code & Manifest Modal -->
+    <div class="modal-backdrop" id="export-code-modal">
+        <div class="modal glass modal-lg">
+            <div class="modal-header">
+                <div class="flex-row align-center gap-2">
+                    <i data-lucide="code" class="color-indigo"></i>
+                    <h3 id="export-modal-title">Export Deployment Artifact</h3>
+                </div>
+                <button class="modal-close-btn" id="close-export-modal-btn">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p id="export-modal-subtitle" class="subtitle mb-3">Copy-paste into Oracle SQL Developer or GCP Cloud Shell.</p>
+                <div class="code-viewer-container">
+                    <pre><code id="export-code-content" class="language-sql"></code></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="primary-btn" id="copy-export-code-btn">
+                    <i data-lucide="copy"></i> Copy to Clipboard
+                </button>
+                <button type="button" class="glass-btn" id="dismiss-export-modal-btn">Close</button>
+            </div>
         </div>
     </div>
 
