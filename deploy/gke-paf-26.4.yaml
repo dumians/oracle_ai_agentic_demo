@@ -1,0 +1,129 @@
+# ==============================================================================
+# 🏛️ GKE Manifest: Oracle AI Database Private Agent Factory 26.4 (PAIAS)
+# ==============================================================================
+# Documentation: https://docs.oracle.com/en/database/oracle/agent-factory/26.4/paias/
+# Downloads:     https://www.oracle.com/database/technologies/private-agent-factory-downloads.html
+# ==============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oracle-paf-26-4
+  namespace: default
+  labels:
+    app.kubernetes.io/name: oracle-private-agent-factory
+    app.kubernetes.io/version: "26.4"
+    app.kubernetes.io/component: paias-runtime
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: oracle-paf-26-4
+  template:
+    metadata:
+      labels:
+        app: oracle-paf-26-4
+    spec:
+      serviceAccountName: oracle-agent-factory-sa
+      containers:
+      - name: paias-core
+        image: gcr.io/total-vertex-469513-r8/oracle-private-agent-factory:26.4
+        imagePullPolicy: IfNotPresent
+        resources:
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+        env:
+        - name: PAIAS_VERSION
+          value: "26.4"
+        - name: PORT
+          value: "8080"
+        - name: GCP_PROJECT_ID
+          value: "total-vertex-469513-r8"
+        - name: GCP_REGION
+          value: "eu-west3"
+        - name: DEFAULT_LLM_MODEL
+          value: "gemini-3.1-flash"
+        - name: TNS_ADMIN
+          value: "/secrets/oracle-wallet"
+        - name: DB_WALLET_DIR
+          value: "/secrets/oracle-wallet"
+        - name: DB_DSN
+          valueFrom:
+            secretKeyRef:
+              name: oracle-db-credentials
+              key: dsn
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: oracle-db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: oracle-db-credentials
+              key: password
+        volumeMounts:
+        - name: oracle-wallet-volume
+          mountPath: /secrets/oracle-wallet
+          readOnly: true
+        ports:
+        - containerPort: 8080
+          name: http
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 20
+      volumes:
+      - name: oracle-wallet-volume
+        secret:
+          secretName: oracle-db-wallet-zip
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oracle-paf-26-4-svc
+  namespace: default
+  labels:
+    app: oracle-paf-26-4
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: http
+  selector:
+    app: oracle-paf-26-4
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: oracle-paf-26-4-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: oracle-paf-26-4
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70

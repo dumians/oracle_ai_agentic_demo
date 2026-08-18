@@ -1,0 +1,145 @@
+# ==============================================================================
+# 🏛️ Google Cloud Run Service: Oracle AI Private Agent Factory 26.4 (PAIAS)
+# ==============================================================================
+# Official Docs: https://docs.oracle.com/en/database/oracle/agent-factory/26.4/paias/
+# Downloads:     https://www.oracle.com/database/technologies/private-agent-factory-downloads.html
+# ==============================================================================
+# This Knative manifest deploys the official Oracle AI Database Private Agent
+# Factory 26.4 container on Google Cloud Run with Serverless VPC Access,
+# mTLS wallet volume mounts, and Vertex AI Workload Identity.
+# ==============================================================================
+
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: oracle-paf-26-4
+  namespace: default
+  labels:
+    cloud.googleapis.com/location: eu-west3
+    app.kubernetes.io/name: oracle-private-agent-factory
+    app.kubernetes.io/version: "26.4"
+    app.kubernetes.io/component: paias-runtime
+    app.kubernetes.io/part-of: oracle-database-ai
+  annotations:
+    run.googleapis.com/ingress: internal-and-cloud-load-balancing
+    run.googleapis.com/vpc-access-connector: projects/total-vertex-469513-r8/locations/eu-west3/connectors/oracle-db-connector
+    run.googleapis.com/vpc-access-egress: all-traffic
+    run.googleapis.com/description: "Oracle AI Database Private Agent Factory (PAIAS 26.4) on GCP Cloud Run"
+
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "10"
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/startup-cpu-boost: "true"
+      labels:
+        app: oracle-paf-26-4
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      serviceAccountName: oracle-agent-factory-sa@total-vertex-469513-r8.iam.gserviceaccount.com
+
+      containers:
+      # Target image: Mirror of container-registry.oracle.com/database/private-agent-factory:26.4
+      - image: gcr.io/total-vertex-469513-r8/oracle-private-agent-factory:26.4
+        name: paias-agent-factory-core
+        resources:
+          limits:
+            cpu: "2000m"
+            memory: "4Gi"
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+
+        env:
+        # PAIAS 26.4 Core Configuration
+        - name: PAIAS_VERSION
+          value: "26.4"
+        - name: PAIAS_ENVIRONMENT
+          value: "production"
+        - name: PAIAS_PROMPT_LAB_ENABLED
+          value: "true"
+        - name: PAIAS_ENTERPRISE_RBAC
+          value: "ENABLED"
+        - name: PAIAS_DATA_PRODUCT_CONTRACT
+          value: "v1.2"
+        - name: PORT
+          value: "8080"
+
+        # GCP Vertex AI Integration
+        - name: GCP_PROJECT_ID
+          value: "total-vertex-469513-r8"
+        - name: GCP_REGION
+          value: "eu-west3"
+        - name: DEFAULT_LLM_MODEL
+          value: "gemini-3.1-flash"
+        - name: EMBEDDING_MODEL
+          value: "text-embedding-004"
+
+        # Oracle Database@Google Cloud Connection Profile
+        - name: TNS_ADMIN
+          value: "/secrets/oracle-wallet"
+        - name: DB_WALLET_DIR
+          value: "/secrets/oracle-wallet"
+        - name: DB_DSN
+          valueFrom:
+            secretKeyRef:
+              name: oracle-db-credentials
+              key: dsn
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: oracle-db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: oracle-db-credentials
+              key: password
+
+        # Security & Audit
+        - name: UNIFIED_AUDIT_LOGGING
+          value: "ENABLED"
+        - name: EXFILTRATION_GUARDRAILS
+          value: "STRICT"
+
+        volumeMounts:
+        - name: oracle-wallet-volume
+          mountPath: /secrets/oracle-wallet
+          readOnly: true
+
+        ports:
+        - containerPort: 8080
+          name: http1
+
+        startupProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 5
+
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8080
+          periodSeconds: 20
+          timeoutSeconds: 5
+
+      volumes:
+      - name: oracle-wallet-volume
+        secret:
+          secretName: oracle-db-wallet-zip
+          items:
+          - key: wallet.zip
+            path: wallet.zip
+          - key: cwallet.sso
+            path: cwallet.sso
+          - key: tnsnames.ora
+            path: tnsnames.ora
+          - key: sqlnet.ora
+            path: sqlnet.ora

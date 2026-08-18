@@ -358,12 +358,23 @@
                         <div class="panel-card glass">
                             <div class="panel-header">
                                 <div>
-                                    <h3>Enterprise Private Agent Blueprints</h3>
-                                    <p>Deploy specialized autonomous agents directly to Oracle Database 26ai or containerize on GCP.</p>
+                                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+                                        <h3 style="margin: 0;">Oracle AI Database Private Agent Factory (PAIAS 26.4)</h3>
+                                        <span class="badge-target gcp_container" style="font-size: 10px;">Release 26.4</span>
+                                    </div>
+                                    <p>Deploy specialized autonomous agents directly to Oracle Database 26ai or containerize on GCP Cloud Run & GKE.</p>
                                 </div>
-                                <button id="btn-open-forge" class="primary-btn">
-                                    <i data-lucide="plus-circle"></i> Forge Custom Agent
-                                </button>
+                                <div style="display: flex; gap: 8px;">
+                                    <a href="https://docs.oracle.com/en/database/oracle/agent-factory/26.4/paias/" target="_blank" class="glass-btn" style="text-decoration: none; font-size: 11px; padding: 8px 12px; display: inline-flex; align-items: center; gap: 6px;">
+                                        <i data-lucide="book-open"></i> PAIAS 26.4 Docs
+                                    </a>
+                                    <a href="https://www.oracle.com/database/technologies/private-agent-factory-downloads.html" target="_blank" class="glass-btn" style="text-decoration: none; font-size: 11px; padding: 8px 12px; display: inline-flex; align-items: center; gap: 6px;">
+                                        <i data-lucide="download"></i> Container Images
+                                    </a>
+                                    <button id="btn-open-forge" class="primary-btn">
+                                        <i data-lucide="plus-circle"></i> Forge Custom Agent
+                                    </button>
+                                </div>
                             </div>
                             <div class="blueprint-grid" id="factory-blueprints-container">
                                 <!-- Blueprints dynamically rendered here -->

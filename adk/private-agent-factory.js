@@ -780,10 +780,15 @@ spec:
         const runtime = isCloudRun ? 'Google Cloud Run' : (isGKE ? 'Google Kubernetes Engine (GKE)' : 'Local Container Emulation');
 
         return {
+            paiasVersion: '26.4',
+            officialDocsUrl: 'https://docs.oracle.com/en/database/oracle/agent-factory/26.4/paias/',
+            downloadsPageUrl: 'https://www.oracle.com/database/technologies/private-agent-factory-downloads.html',
+            ocrImageTag: 'container-registry.oracle.com/database/private-agent-factory:26.4',
+            promptLabEnabled: true,
             runtimeEnvironment: runtime,
             isContainerized: isCloudRun || isGKE || process.env.NODE_ENV === 'production',
-            gcpProjectId: process.env.GCP_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'gcp-oracle-mesh-poc',
-            gcpRegion: process.env.GCP_REGION || process.env.GOOGLE_CLOUD_LOCATION || 'us-central1',
+            gcpProjectId: process.env.GCP_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'total-vertex-469513-r8',
+            gcpRegion: process.env.GCP_REGION || process.env.GOOGLE_CLOUD_LOCATION || 'eu-west3',
             oracleDbTarget: 'Oracle Database 26ai @ Google Cloud (ADB-S / ExaDB)',
             tcpsPort: 1522,
             mTLSWalletMounted: Boolean(process.env.DB_WALLET_DIR || process.env.ORACLE_WALLET || true),

@@ -74,12 +74,13 @@ show_menu() {
     echo -e "  ${BOLD}${YELLOW}3)${RESET} 💻 Start the Multi-Agent Coordinator CLI ${BOLD}(Interactive Terminal)${RESET}"
     echo -e "  ${BOLD}${YELLOW}4)${RESET} 🧪 Run Simulated Direct Database Connection Proof ${BOLD}(scratch_test.js)${RESET}"
     echo -e "  ${BOLD}${YELLOW}5)${RESET} 📦 Start Hosted Oracle MCP Toolbox Server ${BOLD}(genai-toolbox)${RESET}"
-    echo -e "  ${BOLD}${YELLOW}6)${RESET} 🚀 Deploy Private Agent Factory to GCP Cloud Run (Container)"
-    echo -e "  ${BOLD}${YELLOW}7)${RESET} 🔍 Run Systematic Environment Validation & Networking Test"
-    echo -e "  ${BOLD}${YELLOW}8)${RESET} 🚪 Exit\n"
+    echo -e "  ${BOLD}${YELLOW}6)${RESET} 📥 Setup & Import Oracle Private Agent Factory 26.4 Container Images (OCR / Downloads)"
+    echo -e "  ${BOLD}${YELLOW}7)${RESET} 🚀 Deploy Private Agent Factory to GCP Cloud Run (Container)"
+    echo -e "  ${BOLD}${YELLOW}8)${RESET} 🔍 Run Systematic Environment Validation & Networking Test"
+    echo -e "  ${BOLD}${YELLOW}9)${RESET} 🚪 Exit\n"
     echo -e "${BOLD}${CYAN}==================================================================${RESET}"
     
-    read -p "Enter choice [1-8]: " choice
+    read -p "Enter choice [1-9]: " choice
     case $choice in
         1)
             print_info "Spinning up Express Server Hub, Private Agent Factory, and A2UI Gateway..."
@@ -122,6 +123,14 @@ show_menu() {
             fi
             ;;
         6)
+            print_info "Launching Oracle Private Agent Factory 26.4 Image Setup & Acquisition Suite..."
+            if [ -f "deploy/setup-oracle-paf-images.sh" ]; then
+                bash deploy/setup-oracle-paf-images.sh
+            else
+                print_error "deploy/setup-oracle-paf-images.sh not found."
+            fi
+            ;;
+        7)
             print_info "Launching automated GCP Cloud Run container deployment..."
             if [ -f "deploy/deploy-gcp-cloudrun.sh" ]; then
                 bash deploy/deploy-gcp-cloudrun.sh
@@ -129,16 +138,16 @@ show_menu() {
                 print_error "deploy/deploy-gcp-cloudrun.sh not found."
             fi
             ;;
-        7)
+        8)
             print_info "Running end-to-end systematic connectivity test harness (.env)..."
             node test_env_connections.js
             ;;
-        8)
+        9)
             print_success "Exiting demo orchestration sequence. Goodbye!"
             exit 0
             ;;
         *)
-            print_error "Invalid selection. Please choose an index between 1 and 8."
+            print_error "Invalid selection. Please choose an index between 1 and 9."
             sleep 1
             show_menu
             ;;
