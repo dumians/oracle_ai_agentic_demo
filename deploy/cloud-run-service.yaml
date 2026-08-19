@@ -87,5 +87,5 @@ spec:
         secret:
           secretName: oracle-db-wallet-zip
           items:
-          - key: wallet.zip
+          - key: latest
             path: wallet.zip

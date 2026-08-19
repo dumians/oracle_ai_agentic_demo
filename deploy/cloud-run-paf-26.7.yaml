@@ -146,9 +146,5 @@ spec:
         secret:
           secretName: oracle-adbs-mtls-wallet
           items:
-          - key: cwallet.sso
-            path: cwallet.sso
-          - key: tnsnames.ora
-            path: tnsnames.ora
-          - key: sqlnet.ora
-            path: sqlnet.ora
+          - key: latest
+            path: wallet.zip
