@@ -116,10 +116,28 @@ gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --role="roles/secretmanager.secretAccessor" \
     --condition=None --quiet >/dev/null
 
-# Step 4: Build Container via Google Cloud Build
-echo -e "\n${BOLD}${YELLOW}Step 4: Submitting Container Build to Google Cloud Build...${RESET}"
-cd ..
-gcloud builds submit --tag "${IMAGE_NAME}" --project="${PROJECT_ID}"
+# Step 4: Build Container via Google Cloud Build (with Pre-flight Verification)
+echo -e "\n${BOLD}${YELLOW}Step 4: Checking Container Image in Artifact Registry...${RESET}"
+SKIP_BUILD=false
+if gcloud artifacts docker images list "${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/${SERVICE_NAME}" --filter="TAGS:latest" --format="value(version)" 2>/dev/null | grep -q .; then
+    EXISTING_DIGEST=$(gcloud artifacts docker images list "${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/${SERVICE_NAME}" --filter="TAGS:latest" --format="value(version)" 2>/dev/null | head -n 1)
+    echo -e "${GREEN}✓ Container image already exists in Artifact Registry!${RESET}"
+    echo -e "  • Image URI: ${CYAN}${IMAGE_NAME}${RESET}"
+    echo -e "  • Digest:    ${CYAN}${EXISTING_DIGEST}${RESET}"
+    read -p "Rebuild image via Cloud Build or use existing image? [u=use existing / R=rebuild, default: u]: " BUILD_CHOICE
+    BUILD_CHOICE="${BUILD_CHOICE:-u}"
+    if [[ "$BUILD_CHOICE" =~ ^[Uu]$ ]]; then
+        SKIP_BUILD=true
+        echo -e "${GREEN}✓ Skipping Cloud Build. Deploying existing image.${RESET}"
+    fi
+fi
+
+if [ "$SKIP_BUILD" = false ]; then
+    echo -e "Submitting container build to Google Cloud Build..."
+    cd ..
+    gcloud builds submit --tag "${IMAGE_NAME}" --project="${PROJECT_ID}"
+    cd deploy
+fi
 
 # Step 5: Deploy to Google Cloud Run
 echo -e "\n${BOLD}${YELLOW}Step 5: Deploying Service to Cloud Run...${RESET}"
