@@ -44,7 +44,7 @@ spec:
 
       containers:
       # Target image: Mirror of container-registry.oracle.com/database/private-agent-factory:26.4
-      - image: gcr.io/total-vertex-469513-r8/oracle-private-agent-factory:26.4
+      - image: europe-west3-docker.pkg.dev/total-vertex-469513-r8/oracle-ai/private-agent-factory:26.4
         name: paias-agent-factory-core
         resources:
           limits:

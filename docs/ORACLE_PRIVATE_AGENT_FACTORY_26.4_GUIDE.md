@@ -119,15 +119,22 @@ bash deploy/setup-oracle-paf-images.sh
    ```bash
    docker pull container-registry.oracle.com/database/private-agent-factory:26.4
    ```
-4. Tag and push to Google Container Registry (GCR) or Google Artifact Registry:
+4. Tag and push to Google Artifact Registry:
    ```bash
-   # Tag for GCP
+   # Ensure Artifact Registry repository exists
+   gcloud artifacts repositories create oracle-ai \
+     --repository-format=docker \
+     --location=${GCP_REGION:-europe-west3} \
+     --description="Oracle AI Private Agent Factory Container Registry" \
+     --project=${GCP_PROJECT_ID} --quiet || true
+
+   # Tag for Artifact Registry
    docker tag container-registry.oracle.com/database/private-agent-factory:26.4 \
-     gcr.io/${GCP_PROJECT_ID}/oracle-private-agent-factory:26.4
+     ${GCP_REGION:-europe-west3}-docker.pkg.dev/${GCP_PROJECT_ID}/oracle-ai/private-agent-factory:26.4
 
    # Authenticate gcloud & push
-   gcloud auth configure-docker --quiet
-   docker push gcr.io/${GCP_PROJECT_ID}/oracle-private-agent-factory:26.4
+   gcloud auth configure-docker "${GCP_REGION:-europe-west3}-docker.pkg.dev" --quiet
+   docker push ${GCP_REGION:-europe-west3}-docker.pkg.dev/${GCP_PROJECT_ID}/oracle-ai/private-agent-factory:26.4
    ```
 
 ---
@@ -138,11 +145,11 @@ bash deploy/setup-oracle-paf-images.sh
    ```bash
    docker load -i private-agent-factory-26.4-container.tar.gz
    ```
-3. Tag and push to Google Cloud:
+3. Tag and push to Google Artifact Registry:
    ```bash
    docker tag oracle/private-agent-factory:26.4 \
-     gcr.io/${GCP_PROJECT_ID}/oracle-private-agent-factory:26.4
-   docker push gcr.io/${GCP_PROJECT_ID}/oracle-private-agent-factory:26.4
+     ${GCP_REGION:-europe-west3}-docker.pkg.dev/${GCP_PROJECT_ID}/oracle-ai/private-agent-factory:26.4
+   docker push ${GCP_REGION:-europe-west3}-docker.pkg.dev/${GCP_PROJECT_ID}/oracle-ai/private-agent-factory:26.4
    ```
 
 ---
@@ -166,7 +173,7 @@ spec:
     spec:
       serviceAccountName: oracle-agent-factory-sa@total-vertex-469513-r8.iam.gserviceaccount.com
       containers:
-      - image: gcr.io/total-vertex-469513-r8/oracle-private-agent-factory:26.4
+      - image: europe-west3-docker.pkg.dev/total-vertex-469513-r8/oracle-ai/private-agent-factory:26.4
         env:
         - name: PAIAS_VERSION
           value: "26.4"

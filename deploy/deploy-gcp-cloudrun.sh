@@ -32,9 +32,30 @@ elif [ -f ".env" ]; then
 fi
 
 PROJECT_ID="${GCP_PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || echo '')}"
-REGION="${GCP_REGION:-us-central1}"
+RAW_REGION="${GCP_REGION:-europe-west3}"
+
+# Normalize GCP region names (e.g., eu-west3 -> europe-west3)
+case "${RAW_REGION}" in
+    eu-west3)
+        REGION="europe-west3"
+        ;;
+    eu-west1)
+        REGION="europe-west1"
+        ;;
+    eu-west2)
+        REGION="europe-west2"
+        ;;
+    eu-west4)
+        REGION="europe-west4"
+        ;;
+    *)
+        REGION="${RAW_REGION}"
+        ;;
+esac
+
+AR_REPO="${GCP_ARTIFACT_REPO:-oracle-ai}"
 SERVICE_NAME="oracle-ai-private-agent-factory"
-IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}:latest"
+IMAGE_NAME="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/${SERVICE_NAME}:latest"
 VPC_CONNECTOR="${GCP_VPC_CONNECTOR:-oracle-db-connector}"
 SA_NAME="oracle-agent-factory-sa"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
@@ -44,10 +65,11 @@ if [ -z "$PROJECT_ID" ]; then
     exit 1
 fi
 
-echo -e "${CYAN}[INFO] Target GCP Project:  ${BOLD}${PROJECT_ID}${RESET}"
-echo -e "${CYAN}[INFO] Target GCP Region:   ${BOLD}${REGION}${RESET}"
-echo -e "${CYAN}[INFO] Target Service:      ${BOLD}${SERVICE_NAME}${RESET}"
-echo -e "${CYAN}[INFO] Container Image:     ${BOLD}${IMAGE_NAME}${RESET}"
+echo -e "${CYAN}[INFO] Target GCP Project:       ${BOLD}${PROJECT_ID}${RESET}"
+echo -e "${CYAN}[INFO] Target GCP Region:        ${BOLD}${REGION}${RESET}"
+echo -e "${CYAN}[INFO] Target Artifact Registry: ${BOLD}${AR_REPO}${RESET}"
+echo -e "${CYAN}[INFO] Target Service:           ${BOLD}${SERVICE_NAME}${RESET}"
+echo -e "${CYAN}[INFO] Container Image:          ${BOLD}${IMAGE_NAME}${RESET}"
 
 # Step 1: Enable required GCP Services
 echo -e "\n${BOLD}${YELLOW}Step 1: Enabling Required GCP APIs...${RESET}"
@@ -60,8 +82,21 @@ gcloud services enable \
     vpcaccess.googleapis.com \
     --project="${PROJECT_ID}"
 
-# Step 2: Create IAM Service Account if needed
-echo -e "\n${BOLD}${YELLOW}Step 2: Checking IAM Service Account & Workload Identity...${RESET}"
+# Step 2: Create Artifact Registry Repository if needed
+echo -e "\n${BOLD}${YELLOW}Step 2: Checking Artifact Registry repository '${AR_REPO}'...${RESET}"
+if ! gcloud artifacts repositories describe "${AR_REPO}" --location="${REGION}" --project="${PROJECT_ID}" &>/dev/null; then
+    echo -e "Creating Artifact Registry repository '${AR_REPO}' in ${REGION}..."
+    gcloud artifacts repositories create "${AR_REPO}" \
+        --repository-format=docker \
+        --location="${REGION}" \
+        --description="Oracle AI Private Agent Factory Registry" \
+        --project="${PROJECT_ID}" --quiet || true
+else
+    echo -e "${GREEN}✓ Artifact Registry repository '${AR_REPO}' is ready.${RESET}"
+fi
+
+# Step 3: Create IAM Service Account if needed
+echo -e "\n${BOLD}${YELLOW}Step 3: Checking IAM Service Account & Workload Identity...${RESET}"
 if ! gcloud iam service-accounts describe "${SA_EMAIL}" --project="${PROJECT_ID}" &>/dev/null; then
     echo -e "Creating Service Account: ${SA_EMAIL}..."
     gcloud iam service-accounts create "${SA_NAME}" \
@@ -81,13 +116,13 @@ gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --role="roles/secretmanager.secretAccessor" \
     --condition=None --quiet >/dev/null
 
-# Step 3: Build Container via Google Cloud Build
-echo -e "\n${BOLD}${YELLOW}Step 3: Submitting Container Build to Google Cloud Build...${RESET}"
+# Step 4: Build Container via Google Cloud Build
+echo -e "\n${BOLD}${YELLOW}Step 4: Submitting Container Build to Google Cloud Build...${RESET}"
 cd ..
 gcloud builds submit --tag "${IMAGE_NAME}" --project="${PROJECT_ID}"
 
-# Step 4: Deploy to Google Cloud Run
-echo -e "\n${BOLD}${YELLOW}Step 4: Deploying Service to Cloud Run...${RESET}"
+# Step 5: Deploy to Google Cloud Run
+echo -e "\n${BOLD}${YELLOW}Step 5: Deploying Service to Cloud Run...${RESET}"
 gcloud run deploy "${SERVICE_NAME}" \
     --image="${IMAGE_NAME}" \
     --region="${REGION}" \

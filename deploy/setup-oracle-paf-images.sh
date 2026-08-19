@@ -40,14 +40,52 @@ elif [ -f ".env" ]; then
 fi
 
 PROJECT_ID="${GCP_PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || echo '')}"
-REGION="${GCP_REGION:-eu-west3}"
+RAW_REGION="${GCP_REGION:-europe-west3}"
+
+# Normalize GCP region names (e.g., eu-west3 -> europe-west3)
+case "${RAW_REGION}" in
+    eu-west3)
+        REGION="europe-west3"
+        ;;
+    eu-west1)
+        REGION="europe-west1"
+        ;;
+    eu-west2)
+        REGION="europe-west2"
+        ;;
+    eu-west4)
+        REGION="europe-west4"
+        ;;
+    *)
+        REGION="${RAW_REGION}"
+        ;;
+esac
+
 AR_REPO="${GCP_ARTIFACT_REPO:-oracle-ai}"
 OCR_REGISTRY="container-registry.oracle.com"
 OCR_IMAGE_NAME="database/private-agent-factory"
 PAF_VERSION="${PAF_VERSION:-26.4}"
 LOCAL_TAG="oracle-private-agent-factory:${PAF_VERSION}"
-TARGET_GCR_IMAGE="gcr.io/${PROJECT_ID}/oracle-private-agent-factory:${PAF_VERSION}"
 TARGET_AR_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/private-agent-factory:${PAF_VERSION}"
+TARGET_AR_LATEST="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/private-agent-factory:latest"
+TARGET_GCR_IMAGE="gcr.io/${PROJECT_ID}/oracle-private-agent-factory:${PAF_VERSION}"
+
+# Helper to verify or create the Artifact Registry repository
+ensure_artifact_registry() {
+    if [ -n "$PROJECT_ID" ] && [ -n "$AR_REPO" ]; then
+        echo -e "\n${BOLD}${BLUE}Checking Artifact Registry repository '${AR_REPO}' in ${REGION}...${RESET}"
+        if ! gcloud artifacts repositories describe "${AR_REPO}" --location="${REGION}" --project="${PROJECT_ID}" &>/dev/null; then
+            echo -e "${YELLOW}Artifact Registry repository '${AR_REPO}' not found. Creating it...${RESET}"
+            gcloud artifacts repositories create "${AR_REPO}" \
+                --repository-format=docker \
+                --location="${REGION}" \
+                --description="Oracle AI Private Agent Factory Container Registry" \
+                --project="${PROJECT_ID}" --quiet || true
+        else
+            echo -e "${GREEN}✓ Artifact Registry repository '${AR_REPO}' is ready.${RESET}"
+        fi
+    fi
+}
 
 echo -e "${BOLD}Target Configuration:${RESET}"
 echo -e "  • GCP Project ID:        ${CYAN}${PROJECT_ID:-[Not Configured]}${RESET}"
@@ -152,19 +190,24 @@ load_from_archive() {
 
     # Extract version if pattern matches
     DETECTED_VER="$(basename "$ARCHIVE_PATH" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" || echo "$PAF_VERSION")"
-    TARGET_VER_TAG="gcr.io/${PROJECT_ID}/oracle-private-agent-factory:${DETECTED_VER}"
-    TARGET_LATEST_TAG="gcr.io/${PROJECT_ID}/oracle-private-agent-factory:latest"
+    TARGET_AR_VER_TAG="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/private-agent-factory:${DETECTED_VER}"
+    TARGET_AR_LATEST_TAG="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/private-agent-factory:latest"
+    TARGET_GCR_VER_TAG="gcr.io/${PROJECT_ID}/oracle-private-agent-factory:${DETECTED_VER}"
 
     echo -e "\nDetected Agent Factory Version: ${BOLD}${GREEN}${DETECTED_VER}${RESET}"
-    echo -e "Target GCR Image: ${BOLD}${CYAN}${TARGET_VER_TAG}${RESET}\n"
+    echo -e "Target Artifact Registry: ${BOLD}${CYAN}${TARGET_AR_VER_TAG}${RESET}"
+    echo -e "Target GCR Image:         ${BOLD}${CYAN}${TARGET_GCR_VER_TAG}${RESET}\n"
 
     if command -v docker &> /dev/null; then
         echo -e "Loading container image archive with docker load..."
         docker load -i "${ARCHIVE_PATH}"
         docker tag "oracle/private-agent-factory:${DETECTED_VER}" "${LOCAL_TAG}" 2>/dev/null || true
-        docker tag "${LOCAL_TAG}" "${TARGET_VER_TAG}"
-        docker tag "${LOCAL_TAG}" "${TARGET_LATEST_TAG}"
+        docker tag "${LOCAL_TAG}" "${TARGET_AR_VER_TAG}"
+        docker tag "${LOCAL_TAG}" "${TARGET_AR_LATEST_TAG}"
+        docker tag "${LOCAL_TAG}" "${TARGET_GCR_VER_TAG}" 2>/dev/null || true
         echo -e "${GREEN}✓ Successfully loaded and tagged image with Docker!${RESET}"
+        echo -e "  • ${TARGET_AR_VER_TAG}"
+        echo -e "  • ${TARGET_AR_LATEST_TAG}"
     else
         echo -e "${YELLOW}[INFO] Docker not detected locally. Submitting direct Cloud Build from extracted kit...${RESET}"
         STAGE_DIR="/tmp/paf_build_${DETECTED_VER}"
@@ -175,14 +218,15 @@ load_from_archive() {
         rm -f "${STAGE_DIR}/applied-ai/kit/agent_factory/third_party/python3/bin/.ade_path" \
               "${STAGE_DIR}/applied-ai/kit/agent_factory/third_party/python3/lib/.ade_path" 2>/dev/null || true
 
-        echo -e "Submitting build to Google Cloud Build..."
+        ensure_artifact_registry
+        echo -e "Submitting build to Google Cloud Build targeting Artifact Registry..."
         CLOUDSDK_AUTH_ACCESS_TOKEN=$(gcloud auth application-default print-access-token 2>/dev/null || echo '') \
         gcloud builds submit \
-            --tag "${TARGET_VER_TAG}" \
+            --tag "${TARGET_AR_VER_TAG}" \
             --project="${PROJECT_ID}" \
             "${STAGE_DIR}/applied-ai"
         
-        echo -e "${GREEN}✓ Container built and pushed to GCR: ${TARGET_VER_TAG}${RESET}"
+        echo -e "${GREEN}✓ Container built and pushed to Artifact Registry: ${TARGET_AR_VER_TAG}${RESET}"
     fi
     show_menu
 }
@@ -194,17 +238,18 @@ build_local_extended() {
     echo -e "\n${BOLD}${BLUE}--- Workflow 3: Building Extended Multi-Stage Production Container ---${RESET}"
     cd ..
     echo -e "Building container from local Dockerfile with Oracle Instant Client + Node 20 runtime..."
-    docker build -t "${LOCAL_TAG}" -t "${TARGET_GCR_IMAGE}" -t "${TARGET_AR_IMAGE}" .
+    docker build -t "${LOCAL_TAG}" -t "${TARGET_AR_IMAGE}" -t "${TARGET_AR_LATEST}" -t "${TARGET_GCR_IMAGE}" .
     echo -e "${GREEN}✓ Container built and tagged successfully:${RESET}"
     echo -e "  • ${LOCAL_TAG}"
-    echo -e "  • ${TARGET_GCR_IMAGE}"
     echo -e "  • ${TARGET_AR_IMAGE}"
+    echo -e "  • ${TARGET_AR_LATEST}"
+    echo -e "  • ${TARGET_GCR_IMAGE}"
     cd deploy
     show_menu
 }
 
 # ------------------------------------------------------------------------------
-# Workflow 4: Push to GCP Artifact Registry & GCR
+# Workflow 4: Push to GCP Artifact Registry
 # ------------------------------------------------------------------------------
 push_to_gcp() {
     echo -e "\n${BOLD}${BLUE}--- Workflow 4: Pushing to Google Cloud Platform ---${RESET}"
@@ -214,32 +259,21 @@ push_to_gcp() {
         return
     fi
 
-    echo -e "Configuring gcloud authentication for Docker..."
-    gcloud auth configure-docker --quiet
+    ensure_artifact_registry
+
+    echo -e "Configuring gcloud authentication for Artifact Registry Docker..."
     gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet 2>/dev/null || true
 
-    echo -e "\nPushing to Google Container Registry (${TARGET_GCR_IMAGE})..."
-    docker push "${TARGET_GCR_IMAGE}"
-    echo -e "${GREEN}✓ Pushed to GCR: ${TARGET_GCR_IMAGE}${RESET}"
-
-    echo -e "\nChecking / Creating Artifact Registry repository: ${AR_REPO} in ${REGION}..."
-    if ! gcloud artifacts repositories describe "${AR_REPO}" --location="${REGION}" --project="${PROJECT_ID}" &>/dev/null; then
-        echo -e "Creating Artifact Registry repository '${AR_REPO}'..."
-        gcloud artifacts repositories create "${AR_REPO}" \
-            --repository-format=docker \
-            --location="${REGION}" \
-            --description="Oracle AI Private Agent Factory Container Registry" \
-            --project="${PROJECT_ID}" --quiet || true
-    fi
-
     echo -e "\nPushing to GCP Artifact Registry (${TARGET_AR_IMAGE})..."
-    docker push "${TARGET_AR_IMAGE}" || echo -e "${YELLOW}Artifact Registry push skipped; GCR image is ready.${RESET}"
+    docker push "${TARGET_AR_IMAGE}"
+    docker push "${TARGET_AR_LATEST}" 2>/dev/null || true
+    echo -e "${GREEN}✓ Pushed to Artifact Registry: ${TARGET_AR_IMAGE}${RESET}"
 
     echo -e "\n${BOLD}${GREEN}==================================================================================${RESET}"
-    echo -e "${BOLD}${GREEN}✓ Oracle Private Agent Factory 26.4 images are staged in GCP for deployment!${RESET}"
+    echo -e "${BOLD}${GREEN}✓ Oracle Private Agent Factory container images are staged in Artifact Registry!${RESET}"
     echo -e "${BOLD}${GREEN}==================================================================================${RESET}"
     echo -e "Use the following image in Cloud Run or GKE:"
-    echo -e "👉 ${BOLD}${CYAN}${TARGET_GCR_IMAGE}${RESET}"
+    echo -e "👉 ${BOLD}${CYAN}${TARGET_AR_IMAGE}${RESET}"
     show_menu
 }
 
