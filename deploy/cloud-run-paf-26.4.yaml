@@ -89,13 +89,13 @@ spec:
         - name: DB_USERNAME
           valueFrom:
             secretKeyRef:
-              name: oracle-db-credentials
-              key: username
+              name: oracle-db-username
+              key: latest
         - name: DB_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: oracle-db-credentials
-              key: password
+              name: oracle-db-password
+              key: latest
 
         # Security & Audit
         - name: UNIFIED_AUDIT_LOGGING
