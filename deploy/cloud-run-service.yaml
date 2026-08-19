@@ -14,9 +14,7 @@ metadata:
   annotations:
     # Restrict ingress to internal VPC and Google Cloud Load Balancing
     run.googleapis.com/ingress: all
-    # Direct egress traffic through Serverless VPC Access Connector into Oracle Database@GCP ODB Network
-    run.googleapis.com/vpc-access-connector: projects/PROJECT_ID/locations/us-central1/connectors/oracle-db-connector
-    run.googleapis.com/vpc-access-egress: private-ranges-only
+
 spec:
   template:
     metadata:
@@ -26,6 +24,9 @@ spec:
         autoscaling.knative.dev/maxScale: "20"
         run.googleapis.com/cpu-throttling: "true"
         run.googleapis.com/execution-environment: gen2
+        # Direct egress traffic through Serverless VPC Access Connector into Oracle Database@GCP ODB Network
+        run.googleapis.com/vpc-access-connector: projects/PROJECT_ID/locations/us-central1/connectors/oracle-db-connector
+        run.googleapis.com/vpc-access-egress: private-ranges-only
     spec:
       containerConcurrency: 80
       timeoutSeconds: 300

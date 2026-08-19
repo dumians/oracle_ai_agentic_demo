@@ -21,8 +21,6 @@ metadata:
     component: paias-runtime
   annotations:
     run.googleapis.com/ingress: internal-and-cloud-load-balancing
-    run.googleapis.com/vpc-access-connector: projects/total-vertex-469513-r8/locations/eu-west3/connectors/oracle-db-connector
-    run.googleapis.com/vpc-access-egress: all-traffic
     run.googleapis.com/description: "Oracle AI Database Private Agent Factory (PAIAS 26.4) on GCP Cloud Run"
 
 spec:
@@ -34,6 +32,8 @@ spec:
         run.googleapis.com/cpu-throttling: "false"
         run.googleapis.com/execution-environment: gen2
         run.googleapis.com/startup-cpu-boost: "true"
+        run.googleapis.com/vpc-access-connector: projects/total-vertex-469513-r8/locations/europe-west3/connectors/oracle-db-connector
+        run.googleapis.com/vpc-access-egress: private-ranges-only
       labels:
         app: oracle-paf-26-4
     spec:
