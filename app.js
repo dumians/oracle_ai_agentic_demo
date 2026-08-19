@@ -165,60 +165,126 @@ app.get('/api/v1/health', (req, res) => {
     res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
 
-// Submit Query to Multi-Agent 
+// Submit Query to Multi-Agent (Supports Coordinator and Private Agent Factory blueprints)
 app.post('/api/query', async (req, res) => {
-    const { query, mode } = req.body;
+    const { query, mode, agentId, sync } = req.body;
     if (!query) {
         return res.status(400).json({ error: 'Query is required' });
     }
 
     const isMockMode = (mode === 'mock');
+    const isSync = (sync === true || req.query.sync === 'true');
+    const startTime = Date.now();
+
     activeTrace = {
         state: 'processing',
         lastQuery: query,
+        agentId: agentId || 'coordinator',
         steps: []
     };
 
-    // Responding immediately so client can start polling status
-    res.json({ status: 'started' });
-
-    // Process query in background
-    try {
-        const finalResult = await coordinator.runCoordinatorQuery(
-            query,
-            (step) => {
+    const processExecution = async () => {
+        try {
+            let finalResult;
+            const onStep = (step) => {
                 activeTrace.steps.push(step);
                 // Also append to live logs for trace observability
                 systemLogs.push({
                     timestamp: step.timestamp || new Date().toISOString(),
-                    agent: step.agent,
+                    agent: step.agent || (agentId ? `Agent: ${agentId}` : 'Specialist Agent'),
                     type: 'INFO',
                     message: step.result
                         ? `${step.query} -> Result: ${typeof step.result === 'object' ? JSON.stringify(step.result) : step.result}`
                         : step.query
                 });
-            },
-            isMockMode
-        );
+            };
 
-        // Append final coordinator synthesis
-        activeTrace.steps.push({
-            agent: "Master Coordinator",
-            query: "Synthesized final response.",
-            result: finalResult,
-            timestamp: new Date().toISOString()
+            if (agentId && agentId !== 'coordinator') {
+                // Execute directly via Private Agent Factory blueprint
+                const blueprintExec = await privateAgentFactory.executeAgent(agentId, query, onStep, isMockMode);
+                finalResult = blueprintExec.data;
+                activeTrace.steps.push({
+                    agent: blueprintExec.metadata ? blueprintExec.metadata.agentName : agentId,
+                    query: "Execution finalized.",
+                    result: finalResult,
+                    timestamp: new Date().toISOString()
+                });
+            } else {
+                // Execute via Master Coordinator federated orchestration
+                finalResult = await coordinator.runCoordinatorQuery(query, onStep, isMockMode);
+                activeTrace.steps.push({
+                    agent: "Master Coordinator",
+                    query: "Synthesized final response.",
+                    result: finalResult,
+                    timestamp: new Date().toISOString()
+                });
+            }
+
+            activeTrace.state = 'completed';
+            return { success: true, result: finalResult, steps: activeTrace.steps, latencyMs: Date.now() - startTime };
+        } catch (err) {
+            console.error("Agent execution error:", err);
+            const errMsg = `Execution failed: ${err.message}`;
+            activeTrace.steps.push({
+                agent: agentId || "Master Coordinator",
+                query: "Error encountered.",
+                result: errMsg,
+                timestamp: new Date().toISOString()
+            });
+            activeTrace.state = 'error';
+            return { success: false, error: errMsg, steps: activeTrace.steps, latencyMs: Date.now() - startTime };
+        }
+    };
+
+    if (isSync) {
+        const outcome = await processExecution();
+        if (outcome.success) {
+            return res.json({ status: 'completed', result: outcome.result, steps: outcome.steps, latencyMs: outcome.latencyMs });
+        } else {
+            return res.status(500).json({ status: 'error', error: outcome.error, steps: outcome.steps, latencyMs: outcome.latencyMs });
+        }
+    } else {
+        // Asynchronous mode: respond immediately and process in background for /api/status polling
+        res.json({ status: 'started', agentId: agentId || 'coordinator' });
+        processExecution();
+    }
+});
+
+// Direct GET /api/query for browser testing, health verification & curl exploration
+app.get('/api/query', async (req, res) => {
+    const query = req.query.q || req.query.query;
+    if (!query) {
+        return res.json({
+            endpoint: '/api/query',
+            method: 'POST',
+            description: 'Oracle AI Database & Vertex AI Multi-Agent Query Gateway',
+            usage: {
+                headers: { 'Content-Type': 'application/json' },
+                body: {
+                    query: 'What inventory transfer actions should we take for SKU-500?',
+                    mode: 'real | mock',
+                    agentId: 'coordinator | supply_chain_auditor | sql_tuning_sentinel | financial_recon_agent | cyber_audit_guardian | predictive_maintenance_agent',
+                    sync: 'true (optional, for synchronous output)'
+                }
+            }
         });
+    }
 
-        activeTrace.state = 'completed';
+    const mode = req.query.mode || 'real';
+    const agentId = req.query.agentId || 'coordinator';
+    const isMockMode = (mode === 'mock');
+
+    try {
+        let result;
+        if (agentId && agentId !== 'coordinator') {
+            const exec = await privateAgentFactory.executeAgent(agentId, query, () => {}, isMockMode);
+            result = exec.data;
+        } else {
+            result = await coordinator.runCoordinatorQuery(query, () => {}, isMockMode);
+        }
+        res.json({ query, agentId, mode, result });
     } catch (err) {
-        console.error("Coordinator execution error:", err);
-        activeTrace.steps.push({
-            agent: "Master Coordinator",
-            query: "Error encountered.",
-            result: `Execution failed: ${err.message}`,
-            timestamp: new Date().toISOString()
-        });
-        activeTrace.state = 'error';
+        res.status(500).json({ query, error: err.message });
     }
 });
 

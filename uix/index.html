@@ -120,13 +120,34 @@
                                 <!-- Initial message loaded dynamically -->
                             </div>
 
-                            <!-- Input form -->
+                            <!-- Input form with Agent Selector and Preset Prompt Chips -->
                             <div class="chat-input-area">
+                                <div class="quick-preset-chips" id="workspace-preset-chips" style="display: flex; gap: 8px; margin-bottom: 10px; max-width: 800px; margin-left: auto; margin-right: auto; overflow-x: auto; padding-bottom: 4px; pointer-events: auto;">
+                                    <button type="button" class="preset-pill-chip glass" data-prompt="What inventory transfer actions should we take for SKU-500?" style="font-size: 11px; padding: 4px 10px; border-radius: 12px; white-space: nowrap; cursor: pointer; color: hsl(var(--text-light)); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);">
+                                        📦 SKU-500 Transfer Action
+                                    </button>
+                                    <button type="button" class="preset-pill-chip glass" data-prompt="Generate a Stock Distribution Bar Chart for SKU-500 across our warehouses." style="font-size: 11px; padding: 4px 10px; border-radius: 12px; white-space: nowrap; cursor: pointer; color: hsl(var(--text-light)); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);">
+                                        📊 SKU-500 Stock Chart
+                                    </button>
+                                    <button type="button" class="preset-pill-chip glass" data-prompt="Analyze supply chain dependencies and delay risk scores for our active maritime ports." style="font-size: 11px; padding: 4px 10px; border-radius: 12px; white-space: nowrap; cursor: pointer; color: hsl(var(--text-light)); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);">
+                                        🌐 Port Risk Dependencies
+                                    </button>
+                                    <button type="button" class="preset-pill-chip glass" data-prompt="Inspect database performance and check for missing vector indexes." data-agent="sql_tuning_sentinel" style="font-size: 11px; padding: 4px 10px; border-radius: 12px; white-space: nowrap; cursor: pointer; color: hsl(var(--text-light)); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);">
+                                        ⚡ SQL Tuning Sentinel
+                                    </button>
+                                </div>
                                 <form id="chat-input-form">
                                     <div class="input-wrapper glass">
-                                        <i data-lucide="compass" class="input-compass"></i>
+                                        <select id="chat-agent-select" style="background: rgba(255,255,255,0.06); color: hsl(var(--text-light)); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 6px 10px; font-size: 12px; outline: none; cursor: pointer; margin-right: 8px;">
+                                            <option value="coordinator">👑 Master Coordinator</option>
+                                            <option value="supply_chain_auditor">📦 Supply Chain Auditor</option>
+                                            <option value="sql_tuning_sentinel">⚡ SQL Tuning Sentinel</option>
+                                            <option value="financial_recon_agent">💰 Financial Recon Agent</option>
+                                            <option value="cyber_audit_guardian">🛡️ Cyber Audit Guardian</option>
+                                            <option value="predictive_maintenance_agent">🔧 Predictive Maintenance</option>
+                                        </select>
                                         <input type="text" id="chat-input-field" autocomplete="off"
-                                            placeholder="Ask the coordinator (e.g., stockout risks, spatial hotspots, charts)...">
+                                            placeholder="Ask the coordinator or select a specialized private agent...">
                                         <button type="submit" id="chat-submit-btn">
                                             <i data-lucide="send"></i>
                                         </button>

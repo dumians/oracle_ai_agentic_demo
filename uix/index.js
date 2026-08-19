@@ -35,6 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
         chatForm: document.getElementById('chat-input-form'),
         chatField: document.getElementById('chat-input-field'),
         chatSubmitBtn: document.getElementById('chat-submit-btn'),
+        chatAgentSelect: document.getElementById('chat-agent-select'),
+        workspacePresetChips: document.querySelectorAll('#workspace-preset-chips .preset-pill-chip'),
 
         // Collapsible Trace
         tracePanel: document.getElementById('trace-panel'),
@@ -152,6 +154,23 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             submitUserQuery();
         });
+
+        // Quick Preset Prompt Chips in Workspace Chat
+        if (elements.workspacePresetChips) {
+            elements.workspacePresetChips.forEach(chip => {
+                chip.addEventListener('click', () => {
+                    const prompt = chip.getAttribute('data-prompt');
+                    const agent = chip.getAttribute('data-agent');
+                    if (agent && elements.chatAgentSelect) {
+                        elements.chatAgentSelect.value = agent;
+                    }
+                    if (prompt && elements.chatField) {
+                        elements.chatField.value = prompt;
+                        submitUserQuery();
+                    }
+                });
+            });
+        }
 
         // Collapsible Trace Panel
         elements.toggleTraceBtn.addEventListener('click', () => {
@@ -932,13 +951,16 @@ document.addEventListener('DOMContentLoaded', () => {
         state.isPollingTrace = true;
 
         try {
-            // Initiate coordinator process
+            const selectedAgent = elements.chatAgentSelect ? elements.chatAgentSelect.value : 'coordinator';
+
+            // Initiate coordinator / private agent process
             const response = await fetch('/api/query', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     query: queryText,
-                    mode: state.mode
+                    mode: state.mode,
+                    agentId: selectedAgent
                 })
             });
 
