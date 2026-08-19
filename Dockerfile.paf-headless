@@ -1,0 +1,79 @@
+# ==============================================================================
+# 🏛️ Oracle AI Private Agent Factory 26.7.0 (PAIAS) - Headless Container
+# ==============================================================================
+# Dedicated minimal production container for Google Cloud Run / GKE.
+# Runs in pure Headless API mode without frontend UIX assets.
+# ==============================================================================
+
+# Stage 1: Build & Dependencies
+FROM node:20-slim AS builder
+
+WORKDIR /app
+
+# Install build tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV npm_config_registry=https://registry.npmjs.org/
+
+COPY package*.json ./
+RUN npm ci --omit=dev || npm install --omit=dev --registry=https://registry.npmjs.org/
+
+# Stage 2: Minimal Headless Production Runtime
+FROM node:20-slim AS runner
+
+WORKDIR /app
+
+# Install runtime dependencies for Oracle Instant Client (libaio1) and utilities
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libaio1 \
+    curl \
+    unzip \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set standard environment variables for Headless PAF 26.7
+ENV NODE_ENV=production \
+    PORT=8080 \
+    PAIAS_VERSION=26.7.0 \
+    ENABLE_UIX=false \
+    HEADLESS_MODE=true \
+    PAIAS_MODE=headless \
+    TNS_ADMIN=/etc/oracle/wallet \
+    GOOGLE_CLOUD_LOCATION=europe-west3 \
+    GCP_REGION=europe-west3
+
+# Create non-root application user for container runtime security
+RUN groupadd -g 10001 appgroup && \
+    useradd -u 10001 -g appgroup -s /bin/bash -m appuser
+
+# Copy production node_modules from builder
+COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
+
+# Copy only backend application code (strictly omitting UIX frontend)
+COPY --chown=appuser:appgroup package.json ./
+COPY --chown=appuser:appgroup app.js ./
+COPY --chown=appuser:appgroup adk/ ./adk/
+COPY --chown=appuser:appgroup agents/ ./agents/
+COPY --chown=appuser:appgroup services/ ./services/
+COPY --chown=appuser:appgroup sql/ ./sql/
+
+# Ensure secure directories for wallet extraction and runtime cache
+RUN mkdir -p /etc/oracle/wallet /secrets/oracle-wallet /app/.oracle_wallet && \
+    chown -R appuser:appgroup /etc/oracle/wallet /secrets/oracle-wallet /app/.oracle_wallet /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose HTTP port
+EXPOSE 8080
+
+# Container Healthcheck (Headless API probe)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8080/api/v1/health || exit 1
+
+# Start Headless Private Agent Factory
+CMD ["node", "app.js"]

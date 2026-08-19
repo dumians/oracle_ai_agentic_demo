@@ -69,6 +69,9 @@ SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 VERIFY_ONLY=false
 FORCE_BUILD=false
 NO_BUILD=false
+USE_MANIFEST=false
+HEADLESS_MODE=false
+DOCKERFILE_TARGET="Dockerfile"
 CUSTOM_IMAGE=""
 
 while [[ $# -gt 0 ]]; do
@@ -85,6 +88,16 @@ while [[ $# -gt 0 ]]; do
             NO_BUILD=true
             shift
             ;;
+        --headless|--paf-26-7|--paf-26.7)
+            HEADLESS_MODE=true
+            SERVICE_NAME="oracle-paf-26-7"
+            DOCKERFILE_TARGET="Dockerfile.paf-headless"
+            shift
+            ;;
+        --manifest)
+            USE_MANIFEST=true
+            shift
+            ;;
         --image=*)
             CUSTOM_IMAGE="${1#*=}"
             shift
@@ -99,6 +112,10 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [ "$HEADLESS_MODE" = true ] && [ -z "$CUSTOM_IMAGE" ]; then
+    IMAGE_NAME="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/private-agent-factory:26.7.0"
+fi
 
 if [ -n "$CUSTOM_IMAGE" ]; then
     IMAGE_NAME="$CUSTOM_IMAGE"
@@ -235,50 +252,81 @@ fi
 
 # Execute Build if required
 if [ "$DO_BUILD" = true ]; then
-    if [ ! -f "${REPO_ROOT}/Dockerfile" ]; then
-        echo -e "${RED}[ERROR] Dockerfile not found at ${REPO_ROOT}/Dockerfile!${RESET}"
+    DOCKERFILE_PATH="${REPO_ROOT}/${DOCKERFILE_TARGET}"
+    if [ ! -f "$DOCKERFILE_PATH" ]; then
+        echo -e "${RED}[ERROR] Dockerfile not found at ${DOCKERFILE_PATH}!${RESET}"
         exit 1
     fi
-    echo -e "\nSubmitting container build to Google Cloud Build from ${REPO_ROOT}..."
+    echo -e "\nSubmitting container build to Google Cloud Build from ${REPO_ROOT} (using ${DOCKERFILE_TARGET})..."
+    
+    # Generate temporary cloudbuild file to support custom Dockerfile name
+    TEMP_CLOUDBUILD="$(mktemp /tmp/cloudbuild_run_XXXXXX.yaml)"
+    cat << EOF > "$TEMP_CLOUDBUILD"
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-f', '${DOCKERFILE_TARGET}', '-t', '${IMAGE_NAME}', '.']
+images:
+- '${IMAGE_NAME}'
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: 'CLOUD_LOGGING_ONLY'
+timeout: '1800s'
+EOF
+
     gcloud builds submit \
-        --tag "${IMAGE_NAME}" \
+        --config="${TEMP_CLOUDBUILD}" \
         --project="${PROJECT_ID}" \
         "${REPO_ROOT}"
+    rm -f "${TEMP_CLOUDBUILD}"
     echo -e "${GREEN}✓ Cloud Build completed successfully.${RESET}"
 fi
 
 # Step 5: Deploy to Google Cloud Run
 echo -e "\n${BOLD}${YELLOW}Step 5: Deploying Service to Cloud Run...${RESET}"
 
-VPC_FLAGS=()
-if [ -n "$VPC_CONNECTOR" ]; then
-    VPC_FLAGS=(
-        "--vpc-connector=${VPC_CONNECTOR}"
-        "--vpc-egress=private-ranges-only"
-    )
-fi
+if [ "$USE_MANIFEST" = true ] && [ -f "${REPO_ROOT}/deploy/cloud-run-paf-26.7.yaml" ]; then
+    echo -e "Deploying via Knative manifest: ${CYAN}${REPO_ROOT}/deploy/cloud-run-paf-26.7.yaml${RESET}..."
+    gcloud run services replace "${REPO_ROOT}/deploy/cloud-run-paf-26.7.yaml" \
+        --region="${REGION}" \
+        --project="${PROJECT_ID}"
+else
+    VPC_FLAGS=()
+    if [ -n "$VPC_CONNECTOR" ]; then
+        VPC_FLAGS=(
+            "--vpc-connector=${VPC_CONNECTOR}"
+            "--vpc-egress=private-ranges-only"
+        )
+    fi
 
-gcloud run deploy "${SERVICE_NAME}" \
-    --image="${IMAGE_NAME}" \
-    --region="${REGION}" \
-    --platform=managed \
-    --service-account="${SA_EMAIL}" \
-    --memory=2Gi \
-    --cpu=2 \
-    --min-instances=0 \
-    --max-instances=10 \
-    --port=8080 \
-    --allow-unauthenticated \
-    --set-env-vars="NODE_ENV=production,GCP_PROJECT_ID=${PROJECT_ID},GCP_REGION=${REGION},COORDINATOR_MODEL=gemini-3.1-flash,DB_DSN=${DB_DSN:-adbs_high},DB_USERNAME=${DB_USERNAME:-ADMIN}" \
-    "${VPC_FLAGS[@]}" \
-    --project="${PROJECT_ID}"
+    ENV_VARS="NODE_ENV=production,GCP_PROJECT_ID=${PROJECT_ID},GCP_REGION=${REGION},GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${REGION},COORDINATOR_MODEL=gemini-2.0-flash,DB_DSN=${DB_DSN:-adbs_high},DB_USERNAME=${DB_USERNAME:-ADMIN}"
+    if [ "$HEADLESS_MODE" = true ]; then
+        ENV_VARS="${ENV_VARS},ENABLE_UIX=false,HEADLESS_MODE=true,PAIAS_MODE=headless,PAIAS_VERSION=26.7.0"
+    fi
+
+    gcloud run deploy "${SERVICE_NAME}" \
+        --image="${IMAGE_NAME}" \
+        --region="${REGION}" \
+        --platform=managed \
+        --service-account="${SA_EMAIL}" \
+        --memory=2Gi \
+        --cpu=2 \
+        --min-instances=0 \
+        --max-instances=10 \
+        --port=8080 \
+        --allow-unauthenticated \
+        --set-env-vars="${ENV_VARS}" \
+        "${VPC_FLAGS[@]}" \
+        --project="${PROJECT_ID}"
+fi
 
 SERVICE_URL="$(gcloud run services describe "${SERVICE_NAME}" --platform=managed --region="${REGION}" --project="${PROJECT_ID}" --format='value(status.url)' 2>/dev/null || echo 'http://deployed-url')"
 
 echo -e "\n${BOLD}${GREEN}==================================================================${RESET}"
-echo -e "${BOLD}${GREEN}✓ Oracle AI Private Agent Factory deployed successfully!${RESET}"
+echo -e "${BOLD}${GREEN}✓ Oracle AI Private Agent Factory (PAF 26.7) deployed successfully!${RESET}"
 echo -e "${BOLD}${GREEN}==================================================================${RESET}"
-echo -e "Access Endpoint: ${BOLD}${CYAN}${SERVICE_URL}${RESET}"
+echo -e "Mode:            ${BOLD}${CYAN}$([ "$HEADLESS_MODE" = true ] && echo "Headless API (No UIX)" || echo "Full Hybrid Web + UIX")${RESET}"
+echo -e "Service URL:     ${BOLD}${CYAN}${SERVICE_URL}${RESET}"
 echo -e "Health Check:    ${BOLD}${CYAN}${SERVICE_URL}/api/v1/health${RESET}"
+echo -e "Query Endpoint:  ${BOLD}${CYAN}${SERVICE_URL}/api/query${RESET}"
 echo -e "Agent Factory:   ${BOLD}${CYAN}${SERVICE_URL}/api/factory/agents${RESET}\n"
 

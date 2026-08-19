@@ -5,8 +5,8 @@
 # Downloads:     https://www.oracle.com/database/technologies/private-agent-factory-downloads.html
 # ==============================================================================
 # This Knative manifest deploys the official Oracle AI Database Private Agent
-# Factory 26.7.0 container on Google Cloud Run with Serverless VPC Access,
-# mTLS wallet volume mounts, and Vertex AI Workload Identity.
+# Factory 26.7.0 container on Google Cloud Run in Headless API Mode (without UIX)
+# with Serverless VPC Access, mTLS wallet volume mounts, and Vertex AI.
 # ==============================================================================
 
 apiVersion: serving.knative.dev/v1
@@ -15,16 +15,16 @@ metadata:
   name: oracle-paf-26-7
   namespace: default
   labels:
-    cloud.googleapis.com/location: eu-west3
+    cloud.googleapis.com/location: europe-west3
     app.kubernetes.io/name: oracle-private-agent-factory
     app.kubernetes.io/version: "26.7.0"
-    app.kubernetes.io/component: paias-runtime
+    app.kubernetes.io/component: paias-runtime-headless
     app.kubernetes.io/part-of: oracle-database-ai
   annotations:
-    run.googleapis.com/ingress: internal-and-cloud-load-balancing
-    run.googleapis.com/vpc-access-connector: projects/total-vertex-469513-r8/locations/eu-west3/connectors/oracle-db-connector
-    run.googleapis.com/vpc-access-egress: all-traffic
-    run.googleapis.com/description: "Oracle AI Database Private Agent Factory (PAIAS 26.7.0) on GCP Cloud Run"
+    run.googleapis.com/ingress: all
+    run.googleapis.com/vpc-access-connector: projects/total-vertex-469513-r8/locations/europe-west3/connectors/oracle-db-connector
+    run.googleapis.com/vpc-access-egress: private-ranges-only
+    run.googleapis.com/description: "Oracle AI Database Private Agent Factory (PAIAS 26.7.0) Headless API on GCP Cloud Run"
 
 spec:
   template:
@@ -55,39 +55,58 @@ spec:
             memory: "2Gi"
 
         env:
-        # PAIAS 26.7 Core Configuration
+        # PAIAS 26.7 Core & Headless Configuration (Without UIX)
         - name: PAIAS_VERSION
           value: "26.7.0"
         - name: PORT
           value: "8080"
+        - name: NODE_ENV
+          value: "production"
+        - name: ENABLE_UIX
+          value: "false"
+        - name: HEADLESS_MODE
+          value: "true"
+        - name: PAIAS_MODE
+          value: "headless"
         - name: AGENT_FACTORY_MODE
           value: "production"
 
         # Oracle Database@Google Cloud Private Endpoint Connection
-        - name: ORACLE_DB_USER
+        - name: DB_USERNAME
           valueFrom:
             secretKeyRef:
               name: oracle-db-credentials
               key: username
-        - name: ORACLE_DB_PASSWORD
+        - name: DB_PASSWORD
           valueFrom:
             secretKeyRef:
               name: oracle-db-credentials
               key: password
-        - name: ORACLE_DB_CONNECT_STRING
-          value: "tcps://adb.eu-frankfurt-1.oraclecloud.com:1522/dbaudit_high.adb.oraclecloud.com?ssl_server_cert_dn=CN=adb.eu-frankfurt-1.oraclecloud.com,OU=Oracle%20BMCS%20FRANKFURT,O=Oracle%20Corporation,L=Redwood%20City,ST=California,C=US"
+        - name: DB_DSN
+          value: "(description=(retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=gcp-europe-west3.adb.eu-frankfurt-1.oraclecloud.com))(connect_data=(service_name=g7fc8bfc0a44b0c_jdatpai02_medium.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))"
+        - name: DB_WALLET_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: oracle-db-credentials
+              key: wallet_password
         - name: TNS_ADMIN
           value: "/etc/oracle/wallet"
 
         # Vertex AI Agent Engine & Gemini Model Integration
-        - name: VERTEX_AI_PROJECT
+        - name: GCP_PROJECT_ID
           value: "total-vertex-469513-r8"
-        - name: VERTEX_AI_LOCATION
-          value: "eu-west3"
+        - name: GCP_REGION
+          value: "europe-west3"
+        - name: GOOGLE_CLOUD_PROJECT
+          value: "total-vertex-469513-r8"
+        - name: GOOGLE_CLOUD_LOCATION
+          value: "europe-west3"
+        - name: COORDINATOR_MODEL
+          value: "gemini-2.0-flash"
         - name: GEMINI_MODEL_PRIMARY
-          value: "gemini-2.5-pro"
+          value: "gemini-2.0-flash"
         - name: GEMINI_MODEL_FLASH
-          value: "gemini-2.5-flash"
+          value: "gemini-2.0-flash"
         - name: GEMINI_EMBEDDING_MODEL
           value: "text-embedding-005"
 

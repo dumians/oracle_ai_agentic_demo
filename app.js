@@ -152,17 +152,29 @@ let agents = [
 ];
 
 
+// Determine runtime mode: Full UIX vs Headless API
+const ENABLE_UIX = process.env.ENABLE_UIX !== 'false' && 
+                   process.env.HEADLESS_MODE !== 'true' && 
+                   process.env.PAIAS_MODE !== 'headless';
+
 // Middleware
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'uix')));
+
+if (ENABLE_UIX) {
+    app.use(express.static(path.join(__dirname, 'uix')));
+}
 
 // Routes
 
 // Healthcheck
 app.get('/api/v1/health', (req, res) => {
-    res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+    res.json({ 
+        status: 'healthy', 
+        mode: ENABLE_UIX ? 'full_hybrid_uix' : 'headless_paf_26_7',
+        timestamp: new Date().toISOString() 
+    });
 });
 
 // Submit Query to Multi-Agent (Supports Coordinator and Private Agent Factory blueprints)
@@ -626,10 +638,41 @@ app.get('/api-docs', (req, res) => {
     });
 });
 
-// Catch-all to serve index.html for client-side routing simulation
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'uix', 'index.html'));
-});
+// Catch-all handler: Serve UIX index.html if UIX enabled, or JSON API discovery in headless mode
+if (ENABLE_UIX) {
+    app.get('*', (req, res) => {
+        res.sendFile(path.join(__dirname, 'uix', 'index.html'));
+    });
+} else {
+    app.get('/', (req, res) => {
+        res.json({
+            service: 'Oracle AI Private Agent Factory (PAIAS 26.7.0)',
+            mode: 'headless_api_runtime',
+            status: 'online',
+            endpoints: {
+                health: '/api/v1/health',
+                query: '/api/query',
+                legacyRag: '/api/v1/query',
+                templates: '/api/factory/templates',
+                agents: '/api/factory/agents',
+                provision: '/api/factory/provision',
+                execute: '/api/factory/execute',
+                metrics: '/api/factory/metrics',
+                exportPlSql: '/api/factory/export/plsql/:agentId',
+                exportGcp: '/api/factory/export/gcp/:agentId',
+                apiDocs: '/api-docs'
+            }
+        });
+    });
+
+    app.use((req, res) => {
+        res.status(404).json({
+            error: 'Not Found',
+            message: `Route ${req.method} ${req.originalUrl} not found on Oracle Private Agent Factory 26.7 (Headless API mode).`,
+            discovery: '/'
+        });
+    });
+}
 
 // Initialize and Start Server
 const startServer = async () => {
@@ -642,11 +685,16 @@ const startServer = async () => {
 
     try {
         app.listen(PORT, '0.0.0.0', () => {
-            console.log(`\n🚀 Oracle AI Agentic Demo (JS) running at:`);
-            console.log(`   - Local Hub: http://localhost:${PORT}`);
-            console.log(`   - API Query: http://localhost:${PORT}/api/query`);
-            console.log(`   - Legacy RAG: http://localhost:${PORT}/api/v1/query`);
-            console.log(`   - Health:    http://localhost:${PORT}/api/v1/health`);
+            console.log(`\n🏛️ Oracle AI Private Agent Factory (PAIAS 26.7.0) running in [${ENABLE_UIX ? 'Full Hybrid Web + UIX' : 'Headless Container API'}] mode at:`);
+            if (ENABLE_UIX) {
+                console.log(`   - Web UIX:       http://localhost:${PORT}`);
+            } else {
+                console.log(`   - API Discovery: http://localhost:${PORT}/`);
+            }
+            console.log(`   - Query API:     http://localhost:${PORT}/api/query`);
+            console.log(`   - Factory API:   http://localhost:${PORT}/api/factory/agents`);
+            console.log(`   - Legacy RAG:    http://localhost:${PORT}/api/v1/query`);
+            console.log(`   - Health Check:  http://localhost:${PORT}/api/v1/health`);
         });
     } catch (err) {
         console.error('Could not start Express server:', err.message);
