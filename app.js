@@ -3,6 +3,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
 const path = require('path');
+const oracleDbService = require('./services/oracle-db');
 const ragEngine = require('./services/rag-engine');
 const coordinator = require('./agents/coordinator-agent');
 const adkFactory = require('./adk/agentic-factory');
@@ -480,6 +481,51 @@ app.post('/api/v1/query', async (req, res) => {
         console.error('RAG API Error:', err);
         res.status(500).json({ error: 'Failed to process query', message: err.message });
     }
+});
+// 11. Database Connection Diagnostics & Test (matches README.txt UI Flow)
+app.post('/api/v1/db/test-connection', async (req, res) => {
+    try {
+        const customConfig = req.body.user ? {
+            user: req.body.user,
+            password: req.body.password,
+            connectString: req.body.connectString,
+            walletPassword: req.body.walletPassword
+        } : null;
+
+        const result = await oracleDbService.testConnection(customConfig);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ status: 'FAILED', error: err.message });
+    }
+});
+
+// 12. Provision Application & Read-Only Users (README.txt lines 107-119)
+app.post('/api/v1/db/provision-users', async (req, res) => {
+    try {
+        const { dbUser, dbPassword } = req.body;
+        const result = await oracleDbService.provisionApplicationUsers(dbUser, dbPassword);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// 13. Installation Status & UI Metadata (README.txt lines 154-184)
+app.get('/agentFactory/installation', async (req, res) => {
+    const testResult = await oracleDbService.testConnection();
+    const catalog = await oracleDbService.getDatabaseAgentCatalog();
+    res.json({
+        title: 'Oracle AI Database Private Agent Factory Installation Flow',
+        mode: process.env.NODE_ENV === 'production' ? 'prod' : 'quickstart',
+        database: testResult,
+        agentCatalogCount: catalog.length,
+        endpoints: {
+            testConnection: 'POST /api/v1/db/test-connection',
+            provisionUsers: 'POST /api/v1/db/provision-users',
+            agentsCatalog: 'GET /api/factory/agents',
+            health: 'GET /api/v1/health'
+        }
+    });
 });
 
 // Native docs path
