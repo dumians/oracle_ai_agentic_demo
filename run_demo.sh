@@ -10,6 +10,10 @@
 # Exit immediately if a pipeline exits with a non-zero status
 set -e
 
+# Determine Script Directory reliably and set working directory to repo root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "${SCRIPT_DIR}"
+
 # ANSI Color output styling variables
 RESET="\033[0m"
 BOLD="\033[1m"
@@ -67,27 +71,33 @@ check_environment() {
 
 # Display menu logic
 show_menu() {
-    print_header
-    echo -e "${BOLD}Please select an execution mode:${RESET}\n"
-    echo -e "  ${BOLD}${YELLOW}1)${RESET} 🌐 Start the Unified Web Hub, Private Agent Factory & A2UI Portal ${BOLD}${GREEN}(Recommended)${RESET}"
-    echo -e "  ${BOLD}${YELLOW}2)${RESET} 🏭 Test Private Agent Factory CLI (Execute Blueprints in Terminal)"
-    echo -e "  ${BOLD}${YELLOW}3)${RESET} 💻 Start the Multi-Agent Coordinator CLI ${BOLD}(Interactive Terminal)${RESET}"
-    echo -e "  ${BOLD}${YELLOW}4)${RESET} 🧪 Run Simulated Direct Database Connection Proof ${BOLD}(scratch_test.js)${RESET}"
-    echo -e "  ${BOLD}${YELLOW}5)${RESET} 📦 Start Hosted Oracle MCP Toolbox Server ${BOLD}(genai-toolbox)${RESET}"
-    echo -e "  ${BOLD}${YELLOW}6)${RESET} 📥 Setup & Import Oracle Private Agent Factory 26.4 Container Images (OCR / Downloads)"
-    echo -e "  ${BOLD}${YELLOW}7)${RESET} 🚀 Deploy Private Agent Factory to GCP Cloud Run (Container)"
-    echo -e "  ${BOLD}${YELLOW}8)${RESET} 🔍 Run Systematic Environment Validation & Networking Test"
-    echo -e "  ${BOLD}${YELLOW}9)${RESET} 🚪 Exit\n"
-    echo -e "${BOLD}${CYAN}==================================================================${RESET}"
-    
-    read -p "Enter choice [1-9]: " choice
+    local choice="$1"
+
+    if [ -z "$choice" ]; then
+        print_header
+        echo -e "${BOLD}Please select an execution mode:${RESET}\n"
+        echo -e "  ${BOLD}${YELLOW}1)${RESET} 🌐 Start Unified Web Hub & A2UI Portal ${BOLD}${GREEN}(http://localhost:8080)${RESET}"
+        echo -e "  ${BOLD}${YELLOW}2)${RESET} 🏭 Test Private Agent Factory CLI (Execute Blueprints in Terminal)"
+        echo -e "  ${BOLD}${YELLOW}3)${RESET} 💻 Start Multi-Agent Coordinator CLI ${BOLD}(Interactive Terminal)${RESET}"
+        echo -e "  ${BOLD}${YELLOW}4)${RESET} 🧪 Run Direct Database Connection Proof ${BOLD}(Tests/scratch_test.js)${RESET}"
+        echo -e "  ${BOLD}${YELLOW}5)${RESET} 📦 Start Hosted Oracle MCP Toolbox Server ${BOLD}(genai-toolbox)${RESET}"
+        echo -e "  ${BOLD}${YELLOW}6)${RESET} 📥 Setup Oracle Private Agent Factory Images ${BOLD}(OCR / Downloads Archive)${RESET}"
+        echo -e "  ${BOLD}${YELLOW}7)${RESET} 🚀 Deploy Private Agent Factory to GCP Cloud Run"
+        echo -e "  ${BOLD}${YELLOW}8)${RESET} 🔍 Run Environment Validation & Reachability Harness ${BOLD}(Tests/test_env_connections.js)${RESET}"
+        echo -e "  ${BOLD}${YELLOW}9)${RESET} ⚙️ Test Database Connection & Provision Users ${BOLD}(README.txt Setup)${RESET}"
+        echo -e "  ${BOLD}${YELLOW}10)${RESET} 🚪 Exit\n"
+        echo -e "${BOLD}${CYAN}==================================================================${RESET}"
+        
+        read -p "Enter choice [1-10]: " choice
+    fi
+
     case $choice in
-        1)
+        1|--web|--hub)
             print_info "Spinning up Express Server Hub, Private Agent Factory, and A2UI Gateway..."
-            print_info "Access portal interface natively at: http://localhost:8080"
+            print_info "Access portal interface at: http://localhost:8080"
             npm start
             ;;
-        2)
+        2|--factory)
             print_info "Testing Private Agent Factory execution against Supply Chain Risk Auditor..."
             node -e "
             const factory = require('./adk/private-agent-factory');
@@ -101,15 +111,21 @@ show_menu() {
             })();
             "
             ;;
-        3)
+        3|--coordinator)
             print_info "Launching localized interactive multi-agent coordinator CLI session..."
             node agents/coordinator-agent.js
             ;;
-        4)
-            print_info "Executing database direct isolation test harness (scratch_test.js)..."
-            node scratch_test.js
+        4|--scratch)
+            print_info "Executing database direct isolation test harness (Tests/scratch_test.js)..."
+            if [ -f "Tests/scratch_test.js" ]; then
+                node Tests/scratch_test.js
+            elif [ -f "scratch_test.js" ]; then
+                node scratch_test.js
+            else
+                print_error "scratch_test.js not found in Tests/ or root."
+            fi
             ;;
-        5)
+        5|--toolbox)
             print_info "Initializing standalone hosted Oracle MCP Toolbox Server daemon..."
             if command -v toolbox &> /dev/null; then
                 print_info "Exporting .env profile namespace variables into local environment context..."
@@ -122,15 +138,15 @@ show_menu() {
                 print_warn "Make sure MCP toolkit tools dependencies are pre-installed locally."
             fi
             ;;
-        6)
-            print_info "Launching Oracle Private Agent Factory 26.4 Image Setup & Acquisition Suite..."
+        6|--setup-images)
+            print_info "Launching Oracle Private Agent Factory Image Setup & Acquisition Suite..."
             if [ -f "deploy/setup-oracle-paf-images.sh" ]; then
                 bash deploy/setup-oracle-paf-images.sh
             else
                 print_error "deploy/setup-oracle-paf-images.sh not found."
             fi
             ;;
-        7)
+        7|--deploy-cloudrun)
             print_info "Launching automated GCP Cloud Run container deployment..."
             if [ -f "deploy/deploy-gcp-cloudrun.sh" ]; then
                 bash deploy/deploy-gcp-cloudrun.sh
@@ -138,22 +154,39 @@ show_menu() {
                 print_error "deploy/deploy-gcp-cloudrun.sh not found."
             fi
             ;;
-        8)
-            print_info "Running end-to-end systematic connectivity test harness (.env)..."
-            node test_env_connections.js
+        8|--test-env)
+            print_info "Running end-to-end systematic connectivity test harness (Tests/test_env_connections.js)..."
+            if [ -f "Tests/test_env_connections.js" ]; then
+                node Tests/test_env_connections.js
+            elif [ -f "test_env_connections.js" ]; then
+                node test_env_connections.js
+            else
+                print_error "test_env_connections.js not found."
+            fi
             ;;
-        9)
+        9|--db-setup)
+            print_info "Testing database connection and verifying README.txt user setup..."
+            node -e "
+            const db = require('./services/oracle-db');
+            (async () => {
+                console.log('Testing Oracle Database connectivity...');
+                const status = await db.testConnection();
+                console.log('Connection Status:', JSON.stringify(status, null, 2));
+            })();
+            "
+            ;;
+        10|--exit|q|exit)
             print_success "Exiting demo orchestration sequence. Goodbye!"
             exit 0
             ;;
         *)
-            print_error "Invalid selection. Please choose an index between 1 and 9."
+            print_error "Invalid selection '$choice'. Please choose an index between 1 and 10."
             sleep 1
-            show_menu
+            show_menu ""
             ;;
     esac
 }
 
 # Execute startup handlers
 check_environment
-show_menu
+show_menu "$1"
