@@ -46,7 +46,7 @@ spec:
         - name: GCP_REGION
           value: "us-central1"
         - name: COORDINATOR_MODEL
-          value: "gemini-3.1-flash"
+          value: "gemini-2.0-flash"
         - name: DB_WALLET_DIR
           value: "/secrets/oracle-wallet"
         - name: DB_DSN

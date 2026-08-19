@@ -18,7 +18,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD:-Welcome123##}
       - DB_DSN=${DB_DSN:-adbs_high}
       - DB_WALLET_DIR=/secrets/oracle-wallet
-      - COORDINATOR_MODEL=${COORDINATOR_MODEL:-gemini-3.1-flash}
+      - COORDINATOR_MODEL=${COORDINATOR_MODEL:-gemini-2.0-flash}
     volumes:
       - ./.oracle_wallet:/secrets/oracle-wallet:ro
       - ~/.config/gcloud:/home/appuser/.config/gcloud:ro

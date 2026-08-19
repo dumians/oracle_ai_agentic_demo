@@ -16,7 +16,7 @@ class GenericAgent {
     constructor(configTemplate) {
         this.id = configTemplate.id || 'generic-agent';
         this.name = configTemplate.name || 'Generic Specialist Agent';
-        this.model = configTemplate.model || 'gemini-2.5-flash';
+        this.model = configTemplate.model || process.env.COORDINATOR_MODEL || 'gemini-2.0-flash';
         this.domain = configTemplate.domain || 'Global';
         this.systemInstruction = configTemplate.systemInstruction || 'You are a specialized domain agent.';
         

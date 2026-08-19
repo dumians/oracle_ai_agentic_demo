@@ -62,7 +62,10 @@ class VertexAIService {
                 ANSWER:
             `;
 
-            const targetModel = process.env.RAG_MODEL || 'gemini-2.5-flash';
+            const targetModel = process.env.RAG_MODEL || 
+                                process.env.GEMINI_MODEL_PRIMARY || 
+                                process.env.COORDINATOR_MODEL || 
+                                'gemini-2.0-flash';
             const response = await this.ai.models.generateContent({
                 model: targetModel,
                 contents: fullPrompt,

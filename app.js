@@ -98,7 +98,7 @@ let agents = [
     {
         id: 'coordinator',
         name: 'Master Coordinator',
-        model: 'gemini-3.1-flash',
+        model: process.env.COORDINATOR_MODEL || 'gemini-2.0-flash',
         domain: 'Global',
         status: 'online',
         systemInstruction: 'Primary Inventory Gateway orchestrating RAG, Graph, Spatial, Select AI, and Action specialized agents workflows.',
@@ -107,7 +107,7 @@ let agents = [
     {
         id: 'rag-agent',
         name: 'RAG Agent',
-        model: 'gemini-2.5-flash',
+        model: process.env.GEMINI_MODEL_FLASH || 'gemini-2.0-flash',
         domain: 'Oracle Vector RAG Core',
         status: 'online',
         systemInstruction: 'Executes vector-distance similarity searches against unstructured documentation chunks inside RAG_TAB.',
@@ -116,7 +116,7 @@ let agents = [
     {
         id: 'graph-agent',
         name: 'Graph Agent',
-        model: 'gemini-2.5-flash',
+        model: process.env.GEMINI_MODEL_FLASH || 'gemini-2.0-flash',
         domain: 'Oracle Supply Chain ERP',
         status: 'online',
         systemInstruction: 'Traverses supply chain nodes (Supplier, Plant, Port, Warehouse) to highlight dependencies and review delays.',
@@ -125,7 +125,7 @@ let agents = [
     {
         id: 'spatial-agent',
         name: 'Spatial Agent',
-        model: 'gemini-2.5-flash',
+        model: process.env.GEMINI_MODEL_FLASH || 'gemini-2.0-flash',
         domain: 'Oracle Supply Chain ERP',
         status: 'online',
         systemInstruction: 'Pinpoints geographic warehouse risk hotspots and routes excess available relief capacity safely.',
@@ -134,7 +134,7 @@ let agents = [
     {
         id: 'db-agent',
         name: 'Oracle AI Database Agent',
-        model: 'gemini-2.5-pro',
+        model: process.env.GEMINI_MODEL_PRIMARY || 'gemini-2.0-flash',
         domain: 'Oracle Vector RAG Core',
         status: 'online',
         systemInstruction: 'Queries database structures using natural language translation and generates interactive Chart.js JSON blocks.',
@@ -143,7 +143,7 @@ let agents = [
     {
         id: 'action-agent',
         name: 'Inventory Action Agent',
-        model: 'gemini-2.5-flash',
+        model: process.env.GEMINI_MODEL_FLASH || 'gemini-2.0-flash',
         domain: 'Oracle Supply Chain ERP',
         status: 'online',
         systemInstruction: 'Drafts secure inventory transfer actions gathering multi-agent spatial and graph evidence before dispatch.',
