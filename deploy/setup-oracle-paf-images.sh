@@ -61,10 +61,34 @@ case "${RAW_REGION}" in
         ;;
 esac
 
+# Find candidate archive tarball across standard download locations
+find_candidate_archive() {
+    for f in \
+        ~/Downloads/oracle_agent_factory_x86_*.tar.gz \
+        /downloads/oracle_agent_factory_x86_*.tar.gz \
+        ../downloads/oracle_agent_factory_x86_*.tar.gz \
+        ./downloads/oracle_agent_factory_x86_*.tar.gz \
+        ./oracle_agent_factory_x86_*.tar.gz \
+        ../oracle_agent_factory_x86_*.tar.gz \
+        /tmp/oracle_agent_factory_x86_*.tar.gz; do
+        if [ -f "$f" ]; then
+            echo "$f"
+            return 0
+        fi
+    done
+    echo ""
+}
+
+CANDIDATE_ARC="$(find_candidate_archive)"
+DETECTED_ARC_VER=""
+if [ -n "$CANDIDATE_ARC" ]; then
+    DETECTED_ARC_VER="$(basename "$CANDIDATE_ARC" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" || echo "")"
+fi
+
 AR_REPO="${GCP_ARTIFACT_REPO:-oracle-ai}"
 OCR_REGISTRY="container-registry.oracle.com"
 OCR_IMAGE_NAME="database/private-agent-factory"
-PAF_VERSION="${PAF_VERSION:-26.4}"
+PAF_VERSION="${PAF_VERSION:-${DETECTED_ARC_VER:-26.7.0}}"
 LOCAL_TAG="oracle-private-agent-factory:${PAF_VERSION}"
 TARGET_AR_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/private-agent-factory:${PAF_VERSION}"
 TARGET_AR_LATEST="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/private-agent-factory:latest"
@@ -144,13 +168,15 @@ check_extracted_staging() {
     STAGING_KIT_PATH=""
     STAGING_KIT_SIZE="0"
 
-    for candidate_dir in "/tmp/paf_build_${ver}" "./build_paf_${ver}" "../build_paf_${ver}"; do
-        if [ -d "${candidate_dir}/applied-ai" ] && [ -f "${candidate_dir}/applied-ai/Dockerfile" ]; then
-            STAGING_KIT_FOUND=true
-            STAGING_KIT_PATH="${candidate_dir}/applied-ai"
-            STAGING_KIT_SIZE=$(du -sh "${STAGING_KIT_PATH}" 2>/dev/null | awk '{print $1}' || echo "N/A")
-            return 0
-        fi
+    for candidate_pattern in "/tmp/paf_build_${ver}" "/tmp/paf_build_*" "./build_paf_${ver}" "./build_paf_*" "../build_paf_${ver}"; do
+        for candidate_dir in $candidate_pattern; do
+            if [ -d "${candidate_dir}/applied-ai" ] && [ -f "${candidate_dir}/applied-ai/Dockerfile" ]; then
+                STAGING_KIT_FOUND=true
+                STAGING_KIT_PATH="${candidate_dir}/applied-ai"
+                STAGING_KIT_SIZE=$(du -sh "${STAGING_KIT_PATH}" 2>/dev/null | awk '{print $1}' || echo "N/A")
+                return 0
+            fi
+        done
     done
     return 1
 }
@@ -181,6 +207,69 @@ check_local_docker_image() {
     return 1
 }
 
+# Check if staging archive exists in Google Cloud Storage
+check_gcs_object_storage() {
+    local ver="${1:-$PAF_VERSION}"
+    GCS_ARCHIVE_FOUND=false
+    GCS_ARCHIVE_URI=""
+    GCS_ARCHIVE_SIZE="0"
+    GCS_ARCHIVE_TIME="N/A"
+    GCS_LATEST_SOURCE=""
+    GCS_LATEST_SOURCE_SIZE=""
+    GCS_LATEST_SOURCE_TIME=""
+
+    if [ -z "$PROJECT_ID" ]; then
+        return 1
+    fi
+
+    # Check dedicated staging archive
+    local target_gcs="gs://${PROJECT_ID}_cloudbuild/applied-ai-${ver}.tgz"
+    local gcs_stat
+    gcs_stat=$(gcloud storage ls --long "${target_gcs}" 2>/dev/null | grep -v TOTAL | head -n 1 || echo "")
+    if [ -n "$gcs_stat" ]; then
+        GCS_ARCHIVE_FOUND=true
+        GCS_ARCHIVE_URI="${target_gcs}"
+        local bytes
+        bytes=$(echo "$gcs_stat" | awk '{print $1}')
+        GCS_ARCHIVE_SIZE=$(python3 -c "print(f'{float($bytes)/(1024*1024*1024):.2f} GiB')" 2>/dev/null || echo "$bytes bytes")
+        GCS_ARCHIVE_TIME=$(echo "$gcs_stat" | awk '{print $2}')
+    fi
+
+    # Check recent Cloud Build source archive
+    local src_stat
+    src_stat=$(gcloud storage ls --long "gs://${PROJECT_ID}_cloudbuild/source/*.tgz" 2>/dev/null | grep -v TOTAL | sort -k2 -r | head -n 1 || echo "")
+    if [ -n "$src_stat" ]; then
+        local src_bytes
+        src_bytes=$(echo "$src_stat" | awk '{print $1}')
+        GCS_LATEST_SOURCE_TIME=$(echo "$src_stat" | awk '{print $2}')
+        GCS_LATEST_SOURCE=$(echo "$src_stat" | awk '{print $3}')
+        GCS_LATEST_SOURCE_SIZE=$(python3 -c "print(f'{float($src_bytes)/(1024*1024*1024):.2f} GiB')" 2>/dev/null || echo "$src_bytes bytes")
+    fi
+
+    if [ "$GCS_ARCHIVE_FOUND" = true ] || [ -n "$GCS_LATEST_SOURCE" ]; then
+        return 0
+    fi
+    return 1
+}
+
+# Check if local temporary compressed tarball exists
+check_local_temp_archive() {
+    local ver="${1:-$PAF_VERSION}"
+    LOCAL_TMP_ARCHIVE_FOUND=false
+    LOCAL_TMP_ARCHIVE_PATH=""
+    LOCAL_TMP_ARCHIVE_SIZE="0"
+
+    for candidate in "/tmp/applied-ai-${ver}.tgz" "/tmp/applied-ai.tgz" "/tmp/paf_build_${ver}.tgz"; do
+        if [ -f "$candidate" ]; then
+            LOCAL_TMP_ARCHIVE_FOUND=true
+            LOCAL_TMP_ARCHIVE_PATH="$candidate"
+            LOCAL_TMP_ARCHIVE_SIZE=$(du -sh "$candidate" 2>/dev/null | awk '{print $1}' || echo "N/A")
+            return 0
+        fi
+    done
+    return 1
+}
+
 # Find candidate archive tarball across standard download locations
 find_candidate_archive() {
     for f in \
@@ -201,8 +290,13 @@ find_candidate_archive() {
 
 # Display full verification status dashboard
 display_full_verification_report() {
-    local check_ver="${1:-$PAF_VERSION}"
     local candidate_arc="$(find_candidate_archive)"
+    local detected_arc_ver=""
+    if [ -n "$candidate_arc" ]; then
+        detected_arc_ver="$(basename "$candidate_arc" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" || echo "")"
+    fi
+
+    local check_ver="${1:-${detected_arc_ver:-$PAF_VERSION}}"
 
     echo -e "\n${BOLD}${CYAN}==================================================================================${RESET}"
     echo -e "${BOLD}${GREEN}  🔍 ORACLE AI PRIVATE AGENT FACTORY: ARTIFACT & IMAGE VERIFICATION REPORT${RESET}"
@@ -210,10 +304,10 @@ display_full_verification_report() {
     echo -e "Target GCP Project:    ${BOLD}${CYAN}${PROJECT_ID:-[Not Configured]}${RESET}"
     echo -e "Target Region:         ${BOLD}${CYAN}${REGION}${RESET}"
     echo -e "Artifact Repository:   ${BOLD}${CYAN}${AR_REPO}${RESET}"
-    echo -e "PAF Version:           ${BOLD}${CYAN}${check_ver}${RESET}\n"
+    echo -e "Detected PAF Version:  ${BOLD}${CYAN}${check_ver}${RESET}\n"
 
-    # 1. Check Local Tarball Archive
-    echo -e "${BOLD}1. 📦 Local Tarball Archive (*.tar.gz):${RESET}"
+    # 1. Check Local Source Tarball Archive
+    echo -e "${BOLD}1. 📦 Local Source Tarball Archive (*.tar.gz):${RESET}"
     if [ -n "$candidate_arc" ] && check_tarball_archive "$candidate_arc"; then
         echo -e "  • Status:        ${GREEN}✓ FOUND & READY${RESET}"
         echo -e "  • Path:          ${CYAN}${candidate_arc}${RESET}"
@@ -224,19 +318,41 @@ display_full_verification_report() {
         echo -e "  • Download from: ${BLUE}https://www.oracle.com/database/technologies/private-agent-factory-downloads.html${RESET}"
     fi
 
-    # 2. Check Extracted Staging Kit
-    echo -e "\n${BOLD}2. 📂 Local Extracted Staging Kit (applied-ai):${RESET}"
+    # 2. Check Local Temporary Files & Extracted Staging Kit
+    echo -e "\n${BOLD}2. 📂 Local Temporary Files & Extracted Staging Kit:${RESET}"
     if check_extracted_staging "$check_ver"; then
-        echo -e "  • Status:        ${GREEN}✓ EXTRACTED & READY FOR BUILD${RESET}"
+        echo -e "  • Staging Kit:   ${GREEN}✓ EXTRACTED & READY${RESET}"
         echo -e "  • Staging Path:  ${CYAN}${STAGING_KIT_PATH}${RESET}"
         echo -e "  • Size on Disk:  ${BOLD}${STAGING_KIT_SIZE}${RESET}"
         echo -e "  • Dockerfile:    ${GREEN}✓ Verified present${RESET}"
     else
-        echo -e "  • Status:        ${YELLOW}⚠️ NOT EXTRACTED (Will extract from archive during build)${RESET}"
+        echo -e "  • Staging Kit:   ${YELLOW}⚠️ NOT EXTRACTED (Will extract from archive during build)${RESET}"
+    fi
+    if check_local_temp_archive "$check_ver"; then
+        echo -e "  • Temp Archive:  ${GREEN}✓ Found local compressed bundle: ${CYAN}${LOCAL_TMP_ARCHIVE_PATH}${RESET} (${BOLD}${LOCAL_TMP_ARCHIVE_SIZE}${RESET})"
     fi
 
-    # 3. Check Local Docker Engine
-    echo -e "\n${BOLD}3. 🐳 Local Docker Engine:${RESET}"
+    # 3. Check Google Cloud Object Storage (GCS)
+    echo -e "\n${BOLD}3. 🗄️ Google Cloud Storage (Object Storage Staging):${RESET}"
+    if check_gcs_object_storage "$check_ver"; then
+        if [ "$GCS_ARCHIVE_FOUND" = true ]; then
+            echo -e "  • Staged Bundle: ${GREEN}✓ FOUND IN GCS${RESET}"
+            echo -e "  • GCS URI:       ${CYAN}${GCS_ARCHIVE_URI}${RESET}"
+            echo -e "  • Bundle Size:   ${BOLD}${GCS_ARCHIVE_SIZE}${RESET}"
+            echo -e "  • Uploaded At:   ${GCS_ARCHIVE_TIME}"
+        fi
+        if [ -n "$GCS_LATEST_SOURCE" ]; then
+            echo -e "  • CloudBuild Src:${GREEN}✓ Found recent Cloud Build source in GCS${RESET}"
+            echo -e "  • Source URI:    ${CYAN}${GCS_LATEST_SOURCE}${RESET}"
+            echo -e "  • Source Size:   ${BOLD}${GCS_LATEST_SOURCE_SIZE}${RESET}"
+            echo -e "  • Timestamp:     ${GCS_LATEST_SOURCE_TIME}"
+        fi
+    else
+        echo -e "  • Status:        ${YELLOW}ℹ️ No temporary archive staged in gs://${PROJECT_ID}_cloudbuild/${RESET}"
+    fi
+
+    # 4. Check Local Docker Engine
+    echo -e "\n${BOLD}4. 🐳 Local Docker Engine:${RESET}"
     if command -v docker &>/dev/null; then
         if check_local_docker_image "$check_ver"; then
             echo -e "  • Status:        ${GREEN}✓ IMAGE LOADED IN LOCAL DOCKER${RESET}"
@@ -249,8 +365,8 @@ display_full_verification_report() {
         echo -e "  • Status:        ${BLUE}ℹ️ Docker CLI not installed locally (Builds will use Google Cloud Build)${RESET}"
     fi
 
-    # 4. Check Google Artifact Registry (Remote)
-    echo -e "\n${BOLD}4. ☁️ Google Artifact Registry (Remote GCP):${RESET}"
+    # 5. Check Google Artifact Registry (Remote Image)
+    echo -e "\n${BOLD}5. ☁️ Google Artifact Registry (Remote GCP):${RESET}"
     echo -e "  • Target URI:    ${CYAN}${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/private-agent-factory:${check_ver}${RESET}"
     if check_artifact_registry_image "$check_ver"; then
         echo -e "  • Status:        ${GREEN}✓ IMAGE ALREADY PUBLISHED IN ARTIFACT REGISTRY${RESET}"
@@ -258,10 +374,7 @@ display_full_verification_report() {
         echo -e "  • Created Time:  ${AR_IMAGE_TIME}"
         echo -e "  • Image Size:    ${AR_IMAGE_SIZE}"
     else
-        echo -e "  • Status:        ${YELLOW}⚠️ IMAGE NOT FOUND in Artifact Registry (Requires build & push)${RESET}"
-        if ! gcloud auth print-access-token &>/dev/null; then
-            echo -e "  • Auth Note:     ${RED}gcloud authentication token expired. Run 'gcloud auth login' to query remote status.${RESET}"
-        fi
+        echo -e "  • Status:        ${YELLOW}⚠️ IMAGE NOT YET PUBLISHED in Artifact Registry (Requires build & push)${RESET}"
     fi
 
     echo -e "\n${BOLD}${CYAN}==================================================================================${RESET}\n"
