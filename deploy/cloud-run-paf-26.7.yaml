@@ -32,8 +32,6 @@ spec:
         run.googleapis.com/cpu-throttling: "false"
         run.googleapis.com/execution-environment: gen2
         run.googleapis.com/startup-cpu-boost: "true"
-        run.googleapis.com/vpc-access-connector: projects/total-vertex-469513-r8/locations/europe-west3/connectors/oracle-db-connector
-        run.googleapis.com/vpc-access-egress: private-ranges-only
       labels:
         app: oracle-paf-26-7
     spec:
