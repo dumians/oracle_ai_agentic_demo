@@ -6,7 +6,7 @@ apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
   name: oracle-ai-private-agent-factory
-  namespace: default
+  namespace: total-vertex-469513-r8
   labels:
     cloud.googleapis.com/location: us-central1
     app.kubernetes.io/name: oracle-ai-agent-factory
