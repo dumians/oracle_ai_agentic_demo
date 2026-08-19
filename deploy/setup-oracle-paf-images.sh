@@ -579,11 +579,59 @@ load_from_archive() {
             echo -e "${GREEN}✓ Reusing existing extracted staging kit at ${STAGE_DIR}/applied-ai${RESET}"
         fi
 
+        # ----------------------------------------------------------------------
+        # 🛠️ Fix 1: Sanitize Dockerfile to avoid --chmod BuildKit dependency
+        # ----------------------------------------------------------------------
+        if [ -f "${STAGE_DIR}/applied-ai/Dockerfile" ]; then
+            python3 -c "
+dockerfile = '${STAGE_DIR}/applied-ai/Dockerfile'
+with open(dockerfile, 'r') as f:
+    content = f.read()
+if 'COPY --chmod=755 ./kit/ /home/aaiuser/install/' in content:
+    content = content.replace(
+        'COPY --chmod=755 ./kit/ /home/aaiuser/install/',
+        'COPY ./kit/ /home/aaiuser/install/\nRUN chmod -R 755 /home/aaiuser/install'
+    )
+    with open(dockerfile, 'w') as f:
+        f.write(content)
+" 2>/dev/null || true
+        fi
+
+        # ----------------------------------------------------------------------
+        # 🛠️ Fix 2: Generate dedicated cloudbuild.yaml with DOCKER_BUILDKIT=1 & E2_HIGHCPU_8
+        # ----------------------------------------------------------------------
+        cat << 'EOF' > "${STAGE_DIR}/applied-ai/cloudbuild.yaml"
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  env:
+  - 'DOCKER_BUILDKIT=1'
+  args:
+  - 'build'
+  - '--build-arg'
+  - 'BUILDKIT_INLINE_CACHE=1'
+  - '-t'
+  - '$_TARGET_IMAGE'
+  - '-t'
+  - '$_LATEST_IMAGE'
+  - '.'
+images:
+- '$_TARGET_IMAGE'
+- '$_LATEST_IMAGE'
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: 'CLOUD_LOGGING_ONLY'
+timeout: '2400s'
+substitutions:
+  _TARGET_IMAGE: ''
+  _LATEST_IMAGE: ''
+EOF
+
         ensure_artifact_registry
-        echo -e "\nSubmitting build to Google Cloud Build targeting Artifact Registry..."
+        echo -e "\nSubmitting build to Google Cloud Build (BuildKit enabled, E2_HIGHCPU_8)..."
         CLOUDSDK_AUTH_ACCESS_TOKEN=$(gcloud auth application-default print-access-token 2>/dev/null || echo '') \
         gcloud builds submit \
-            --tag "${TARGET_AR_VER_TAG}" \
+            --config="${STAGE_DIR}/applied-ai/cloudbuild.yaml" \
+            --substitutions=_TARGET_IMAGE="${TARGET_AR_VER_TAG}",_LATEST_IMAGE="${TARGET_AR_LATEST_TAG}" \
             --project="${PROJECT_ID}" \
             "${STAGE_DIR}/applied-ai"
         
