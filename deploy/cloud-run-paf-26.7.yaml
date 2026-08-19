@@ -53,12 +53,14 @@ spec:
             cpu: "1000m"
             memory: "2Gi"
 
+        ports:
+        - name: http1
+          containerPort: 8080
+
         env:
         # PAIAS 26.7 Core & Headless Configuration (Without UIX)
         - name: PAIAS_VERSION
           value: "26.7.0"
-        - name: PORT
-          value: "8080"
         - name: NODE_ENV
           value: "production"
         - name: ENABLE_UIX
