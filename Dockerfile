@@ -19,8 +19,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
+ENV npm_config_registry=https://registry.npmjs.org/
+
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev || npm install --omit=dev --registry=https://registry.npmjs.org/
 
 # ------------------------------------------------------------------------------
 # Stage 2: Minimal Production Runtime
