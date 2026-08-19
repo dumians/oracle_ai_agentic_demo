@@ -164,6 +164,7 @@ app.use(express.json());
 
 if (ENABLE_UIX) {
     app.use(express.static(path.join(__dirname, 'uix')));
+    app.use('/agentFactory', express.static(path.join(__dirname, 'uix'), { index: false, redirect: false }));
 }
 
 // Routes
@@ -608,21 +609,229 @@ app.post('/api/v1/db/provision-users', async (req, res) => {
     }
 });
 
-// 13. Installation Status & UI Metadata (README.txt lines 154-184)
+// ==============================================================================
+// Oracle Private Agent Factory (PAIAS 26.7.0 / 26.4) Context Routes & Installation
+// Aligned with Oracle Docs: https://docs.oracle.com/en/database/oracle/agent-factory/26.4/paias/setup-mac-os.html#GUID-638DD66B-DC4A-4509-A5B3-9DBFD206BEB6
+// ==============================================================================
+
+// Helper for Oracle Private Agent Factory Discovery response
+const getPafDiscoveryPayload = (req) => ({
+    service: 'Oracle AI Private Agent Factory (PAIAS 26.7.0)',
+    version: process.env.PAIAS_VERSION || '26.7.0',
+    status: 'online',
+    mode: ENABLE_UIX ? 'full_hybrid_uix' : 'headless_paf_26_7',
+    officialDocs: 'https://docs.oracle.com/en/database/oracle/agent-factory/26.4/paias/',
+    setupGuideMacOs: 'https://docs.oracle.com/en/database/oracle/agent-factory/26.4/paias/setup-mac-os.html#GUID-638DD66B-DC4A-4509-A5B3-9DBFD206BEB6',
+    contextRoot: '/agentFactory',
+    installation: '/agentFactory/installation',
+    endpoints: {
+        agentFactory: '/agentFactory',
+        installation: '/agentFactory/installation',
+        agents: '/agentFactory/agents',
+        templates: '/agentFactory/templates',
+        provision: '/agentFactory/provision',
+        execute: '/agentFactory/execute',
+        trace: '/agentFactory/trace',
+        metrics: '/agentFactory/metrics',
+        status: '/agentFactory/status',
+        health: '/agentFactory/health',
+        exportPlsql: '/agentFactory/export/plsql/:id',
+        exportGcp: '/agentFactory/export/gcp-manifest/:id',
+        apiDocs: '/api-docs'
+    }
+});
+
+// Primary Oracle Private Agent Factory entrypoint
+const agentFactoryRootHandler = (req, res) => {
+    if (ENABLE_UIX && req.accepts('html') && !req.query.format) {
+        return res.sendFile(path.join(__dirname, 'uix', 'index.html'));
+    }
+    res.json(getPafDiscoveryPayload(req));
+};
+
+app.get('/agentFactory', agentFactoryRootHandler);
+app.get('/agentFactory/', agentFactoryRootHandler);
+
+// 13. Installation Status & UI Metadata (README.txt lines 154-184 / Oracle Docs setup-mac-os.html)
 app.get('/agentFactory/installation', async (req, res) => {
     const testResult = await oracleDbService.testConnection();
     const catalog = await oracleDbService.getDatabaseAgentCatalog();
     res.json({
         title: 'Oracle AI Database Private Agent Factory Installation Flow',
+        service: 'Oracle AI Private Agent Factory (PAIAS 26.7.0)',
+        version: process.env.PAIAS_VERSION || '26.7.0',
         mode: process.env.NODE_ENV === 'production' ? 'prod' : 'quickstart',
         database: testResult,
         agentCatalogCount: catalog.length,
         endpoints: {
             testConnection: 'POST /api/v1/db/test-connection',
             provisionUsers: 'POST /api/v1/db/provision-users',
-            agentsCatalog: 'GET /api/factory/agents',
-            health: 'GET /api/v1/health'
+            agentsCatalog: '/agentFactory/agents',
+            templates: '/agentFactory/templates',
+            health: '/agentFactory/health'
         }
+    });
+});
+
+// Standard Oracle Agent Factory web app paths (login, home, workspace, dashboard)
+app.get(['/agentFactory/login', '/agentFactory/home', '/agentFactory/workspace', '/agentFactory/dashboard'], (req, res) => {
+    if (ENABLE_UIX) {
+        return res.sendFile(path.join(__dirname, 'uix', 'index.html'));
+    }
+    res.json({
+        service: 'Oracle AI Private Agent Factory (PAIAS 26.7.0)',
+        page: req.path,
+        status: 'online',
+        mode: 'headless_paf_26_7',
+        discovery: '/agentFactory'
+    });
+});
+
+// Oracle Agent Factory API Aliases
+app.get('/agentFactory/templates', (req, res) => {
+    res.json(privateAgentFactory.listBlueprints());
+});
+
+app.get('/agentFactory/agents', (req, res) => {
+    res.json(privateAgentFactory.listProvisionedAgents());
+});
+
+app.post('/agentFactory/provision', (req, res) => {
+    const { id, name, domain, model, deploymentTarget, systemRole, taskInstruction, tools, presetQueries } = req.body;
+    if (!name) {
+        return res.status(400).json({ error: 'Agent name is required' });
+    }
+    const agentId = (id || `agent_${Date.now()}`).toLowerCase().replace(/\s+/g, '_');
+    const newAgent = privateAgentFactory.provisionAgent({
+        id: agentId,
+        name,
+        domain: domain || 'Oracle Enterprise Data',
+        model: model || 'gemini-2.0-flash',
+        deploymentTarget: deploymentTarget || 'HYBRID',
+        systemRole: systemRole || 'You are an autonomous private database agent.',
+        taskInstruction: taskInstruction || 'Analyze user query: {query} and respond accurately with data grounding.',
+        tools: tools || ['query_inventory_risk', 'query_oracle_rag_kb'],
+        presetQueries: presetQueries || ['What insights can you provide about the database?']
+    });
+
+    const existingIndex = agents.findIndex(a => a.id === agentId);
+    const agentConfigEntry = {
+        id: agentId,
+        name: newAgent.name,
+        model: newAgent.model,
+        domain: newAgent.domain,
+        status: 'online',
+        systemInstruction: newAgent.systemRole,
+        mcpServers: []
+    };
+    if (existingIndex >= 0) {
+        agents[existingIndex] = agentConfigEntry;
+    } else {
+        agents.push(agentConfigEntry);
+    }
+
+    res.status(201).json(newAgent);
+});
+
+app.post('/agentFactory/execute', async (req, res) => {
+    const { agentId, prompt, mode } = req.body;
+    if (!agentId || !prompt) {
+        return res.status(400).json({ error: 'agentId and prompt are required' });
+    }
+
+    const isMockMode = (mode === 'mock');
+    activeFactoryTrace = {
+        state: 'processing',
+        agentId: agentId,
+        lastQuery: prompt,
+        steps: []
+    };
+
+    try {
+        const result = await privateAgentFactory.executeAgent(
+            agentId,
+            prompt,
+            (step) => {
+                activeFactoryTrace.steps.push(step);
+                systemLogs.push({
+                    timestamp: step.timestamp || new Date().toISOString(),
+                    agent: step.agent || 'Private Agent',
+                    type: 'INFO',
+                    message: step.result
+                        ? `${step.query} -> Result: ${typeof step.result === 'object' ? JSON.stringify(step.result) : step.result}`
+                        : step.query
+                });
+            },
+            isMockMode
+        );
+
+        activeFactoryTrace.steps.push({
+            agent: result.agentName || "Private Agent",
+            query: "Synthesized contract response.",
+            result: result.data,
+            timestamp: new Date().toISOString()
+        });
+
+        activeFactoryTrace.state = 'completed';
+        res.json(result);
+    } catch (err) {
+        console.error("Private Agent execution error:", err);
+        activeFactoryTrace.state = 'error';
+        res.status(500).json({ error: 'Private Agent execution failed', message: err.message });
+    }
+});
+
+app.get('/agentFactory/trace', (req, res) => {
+    res.json(activeFactoryTrace);
+});
+
+app.delete('/agentFactory/agents/:id', (req, res) => {
+    const { id } = req.params;
+    const success = privateAgentFactory.decommissionAgent(id);
+    if (!success) {
+        return res.status(404).json({ error: 'Agent not found' });
+    }
+    res.json({ success: true, message: `Agent ${id} decommissioned.` });
+});
+
+app.get('/agentFactory/export/plsql/:id', (req, res) => {
+    const { id } = req.params;
+    const agent = privateAgentFactory.getAgent(id) || privateAgentFactory.getBlueprint(id);
+    if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+    }
+    const plsql = privateAgentFactory.generatePLSQL(agent);
+    res.json({ agentId: id, plsql });
+});
+
+app.get('/agentFactory/export/gcp-manifest/:id', (req, res) => {
+    const { id } = req.params;
+    const agent = privateAgentFactory.getAgent(id) || privateAgentFactory.getBlueprint(id);
+    if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+    }
+    const manifest = privateAgentFactory.generateGCPManifest(agent);
+    res.json({ agentId: id, manifest });
+});
+
+app.get('/agentFactory/status', (req, res) => {
+    res.json(privateAgentFactory.getGCPContainerStatus());
+});
+
+app.get('/agentFactory/health', (req, res) => {
+    res.json({
+        status: 'healthy',
+        service: 'Oracle AI Private Agent Factory (PAIAS 26.7.0)',
+        mode: ENABLE_UIX ? 'full_hybrid_uix' : 'headless_paf_26_7',
+        timestamp: new Date().toISOString()
+    });
+});
+
+app.get('/agentFactory/metrics', (req, res) => {
+    res.json({
+        totalExecutions: privateAgentFactory.metrics.length,
+        activeAgentsCount: privateAgentFactory.listProvisionedAgents().length,
+        metrics: privateAgentFactory.metrics
     });
 });
 
@@ -631,9 +840,9 @@ app.get('/api-docs', (req, res) => {
     res.json({
         openapi: '3.0.0',
         info: {
-            title: 'Oracle AI Database RAG API',
-            version: '1.0.0',
-            description: 'API for querying Oracle Database Knowledge Base with RAG'
+            title: 'Oracle AI Database RAG & Private Agent Factory API',
+            version: '26.7.0',
+            description: 'API for Oracle Database Knowledge Base, Multi-Agent Mesh, and Private Agent Factory (PAIAS 26.7)'
         }
     });
 });
@@ -647,9 +856,13 @@ if (ENABLE_UIX) {
     app.get('/', (req, res) => {
         res.json({
             service: 'Oracle AI Private Agent Factory (PAIAS 26.7.0)',
+            version: process.env.PAIAS_VERSION || '26.7.0',
             mode: 'headless_api_runtime',
             status: 'online',
+            agentFactory: '/agentFactory',
             endpoints: {
+                agentFactory: '/agentFactory',
+                installation: '/agentFactory/installation',
                 health: '/api/v1/health',
                 query: '/api/query',
                 legacyRag: '/api/v1/query',
@@ -669,7 +882,7 @@ if (ENABLE_UIX) {
         res.status(404).json({
             error: 'Not Found',
             message: `Route ${req.method} ${req.originalUrl} not found on Oracle Private Agent Factory 26.7 (Headless API mode).`,
-            discovery: '/'
+            discovery: '/agentFactory'
         });
     });
 }
