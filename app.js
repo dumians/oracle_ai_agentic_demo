@@ -414,22 +414,42 @@ app.get('/api/factory/agents', (req, res) => {
     res.json(privateAgentFactory.listProvisionedAgents());
 });
 
-// 3. Dynamically provision a new private agent
+// 3. Dynamically provision a new private agent (The Agent Forge)
 app.post('/api/factory/provision', (req, res) => {
-    const { name, domain, model, deploymentTarget, systemRole, taskInstruction, tools, presetQueries } = req.body;
+    const { id, name, domain, model, deploymentTarget, systemRole, taskInstruction, tools, presetQueries } = req.body;
     if (!name) {
         return res.status(400).json({ error: 'Agent name is required' });
     }
+    const agentId = (id || `agent_${Date.now()}`).toLowerCase().replace(/\s+/g, '_');
     const newAgent = privateAgentFactory.provisionAgent({
+        id: agentId,
         name,
         domain: domain || 'Oracle Enterprise Data',
-        model: model || 'gemini-3.1-flash',
+        model: model || 'gemini-2.0-flash',
         deploymentTarget: deploymentTarget || 'HYBRID',
         systemRole: systemRole || 'You are an autonomous private database agent.',
         taskInstruction: taskInstruction || 'Analyze user query: {query} and respond accurately with data grounding.',
         tools: tools || ['query_inventory_risk', 'query_oracle_rag_kb'],
         presetQueries: presetQueries || ['What insights can you provide about the database?']
     });
+
+    // Synchronize with global agents registry if not already present
+    const existingIndex = agents.findIndex(a => a.id === agentId);
+    const agentConfigEntry = {
+        id: agentId,
+        name: newAgent.name,
+        model: newAgent.model,
+        domain: newAgent.domain,
+        status: 'online',
+        systemInstruction: newAgent.systemRole,
+        mcpServers: []
+    };
+    if (existingIndex >= 0) {
+        agents[existingIndex] = agentConfigEntry;
+    } else {
+        agents.push(agentConfigEntry);
+    }
+
     res.status(201).json(newAgent);
 });
 
