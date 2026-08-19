@@ -13,13 +13,12 @@ apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
   name: oracle-paf-26-4
-  namespace: default
+  namespace: total-vertex-469513-r8
   labels:
-    cloud.googleapis.com/location: eu-west3
-    app.kubernetes.io/name: oracle-private-agent-factory
-    app.kubernetes.io/version: "26.4"
-    app.kubernetes.io/component: paias-runtime
-    app.kubernetes.io/part-of: oracle-database-ai
+    cloud.googleapis.com/location: europe-west3
+    app: oracle-paf-26-4
+    version: v26-4-0
+    component: paias-runtime
   annotations:
     run.googleapis.com/ingress: internal-and-cloud-load-balancing
     run.googleapis.com/vpc-access-connector: projects/total-vertex-469513-r8/locations/eu-west3/connectors/oracle-db-connector

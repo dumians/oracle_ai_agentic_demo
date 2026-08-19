@@ -16,10 +16,9 @@ metadata:
   namespace: total-vertex-469513-r8
   labels:
     cloud.googleapis.com/location: europe-west3
-    app.kubernetes.io/name: oracle-private-agent-factory
-    app.kubernetes.io/version: "26.7.0"
-    app.kubernetes.io/component: paias-runtime-headless
-    app.kubernetes.io/part-of: oracle-database-ai
+    app: oracle-paf-26-7
+    version: v26-7-0
+    component: paias-runtime-headless
   annotations:
     run.googleapis.com/ingress: all
     run.googleapis.com/vpc-access-connector: projects/total-vertex-469513-r8/locations/europe-west3/connectors/oracle-db-connector

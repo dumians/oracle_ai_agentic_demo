@@ -8,9 +8,9 @@ metadata:
   name: oracle-ai-private-agent-factory
   namespace: total-vertex-469513-r8
   labels:
-    cloud.googleapis.com/location: us-central1
-    app.kubernetes.io/name: oracle-ai-agent-factory
-    app.kubernetes.io/part-of: oracle-database-at-gcp
+    cloud.googleapis.com/location: europe-west3
+    app: oracle-ai-private-agent-factory
+    component: agent-factory-gateway
   annotations:
     # Restrict ingress to internal VPC and Google Cloud Load Balancing
     run.googleapis.com/ingress: all
